@@ -19,12 +19,12 @@ Eine Webanwendung zur Verwaltung und Steuerung von Testrechnern. Benutzer könne
 - Ausführung von Skripten auf den Rechnern (lokale Skripte auf Rechnern ausführen mit winexe)
 - Unterstützung verschiedener Benutzerrollen (Admin-User, Privileged-User, ReadOnly-User)
 - Möglichkeit, mehrere Rechner gleichzeitig zu steuern
-- Admin-Benutzer können weitere Rechner oder Benutzer anlegen (Button, der ausgegraut ist, außer für Admin-Benutzer)
+- Admin-Benutzer können weitere Rechner oder Benutzer anlegen (Button, der ausgegraut ist, außer für Admin-User)
 - Buttons und Dropdowns oben rechts für verschiedene Aktionen
 - Die Zeilen sind die einzelnen Rechner
 - Die Spalten kommen dann von der Datenbank
 
 ## User Roles
-- **Admin**: Kann weitere Rechner oder Benutzer anlegen
-- **Erhöhte Benutzer**: Können den Status der Rechner ändern
-- **Normale Benutzer**: Können nur lesen
+- **Admin-User**: Kann weitere Rechner oder Benutzer anlegen
+- **Privileged-User**: Können den Status der Rechner ändern
+- **ReadOnly-User**: Können nur lesen
