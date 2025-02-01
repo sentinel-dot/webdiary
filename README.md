@@ -1,5 +1,3 @@
-# Project Description
-
 ## Project Name
 Mein WebDiary
 
@@ -29,3 +27,37 @@ Eine Webanwendung zur Verwaltung und Steuerung von Testrechnern. Benutzer könne
 - **Admin-User**: Kann weitere Rechner oder Benutzer anlegen
 - **Privileged-User**: Können den Status der Rechner ändern
 - **ReadOnly-User**: Können nur lesen
+
+
+
+
+## Important Commands
+Im docker-compose.yaml Verzeichnis
+Alles Starten:
+docker-compose up -d
+
+
+Alles Stoppen:
+docker-compose stop
+
+
+Killen, falls aufgehängt:
+docker-compose kill
+
+
+Entfernen (DB bleibt aber enthalten, wenn sie im Volume ist):
+docker-compose down
+
+
+Alles löschen ( Inkl. DB-Reset):
+docker-compose down -v
+
+
+## Backend API
+http://localhost:8080/api/phpFunction
+
+
+## Frontend API
+http://localhost:3000
+
+

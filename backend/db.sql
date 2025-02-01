@@ -1,4 +1,5 @@
--- Bei jedem Start des Containers ausführen: docker exec -i webdiary-db mysql -u root -proot webdiary < backend/db.sql
+-- Bei jedem Start des Containers ausführen:
+-- docker exec -i webdiary-db mysql -u root -proot webdiary < backend/db.sql
 -- Bzw. wenn ich die Struktur verändere
 -- Die DB benutzen: docker exec -it webdiary-db mysql -u root -proot
 CREATE TABLE IF NOT EXISTS computers (
