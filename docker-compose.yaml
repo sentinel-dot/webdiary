@@ -1,7 +1,7 @@
 
 services:
   php-apache:
-    image: php:8.2-apache
+    build: ./backend
     container_name: webdiary-php
     volumes:
       - ./backend:/var/www/html
@@ -11,8 +11,8 @@ services:
       mariadb:
         condition: service_healthy
     environment:
-      - APACHE_RUN_USER=1000
-      - APACHE_RUN_GROUP=1000
+      - APACHE_RUN_USER=www-data
+      - APACHE_RUN_GROUP=www-data
 
   nextjs:
     build: ./frontend

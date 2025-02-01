@@ -22,7 +22,8 @@ Eine Webanwendung zur Verwaltung und Steuerung von Testrechnern. Benutzer könne
 - Admin-Benutzer können weitere Rechner oder Benutzer anlegen (Button, der ausgegraut ist, außer für Admin-User)
 - Buttons und Dropdowns oben rechts für verschiedene Aktionen
 - Die Zeilen sind die einzelnen Rechner
-- Die Spalten kommen dann von der Datenbank
+- Die Spalten kommen dann von der Datenbank, aber Name, IP, Status, Status_Bermerkung kommen aufjedenfall
+- Wenn Status 'Reserviert' sein soll, dann muss man auch Unter Status Bemerkung setzen für wen es reserviert sein soll
 
 ## User Roles
 - **Admin-User**: Kann weitere Rechner oder Benutzer anlegen
