@@ -1,9 +1,8 @@
 ##TODO
 
 - mit excel liste webdiary anlegen nur admin user aber button
-- sortieren
 - buttons mit versch rollen
-- alle seiten verschönern
+- ganz links neue spalte mit auswählen wo man mehrere gleichzeitig auswählen, um dann mit den buttons was mit den zu machen
 
 
 ##Gedanken

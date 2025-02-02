@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS computers (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     ip_address VARCHAR(50) NOT NULL UNIQUE,
-    status ENUM('Testbereit', 'Reserviert', 'Ausser Betrieb', 'Wartung', 'AIS') DEFAULT 'Testbereit',
+    status ENUM('Testbereit', 'Reserviert', 'Ausser Betrieb', 'Installation/Wartung', 'AIS') DEFAULT 'Testbereit',
     status_note TEXT,
     installed_version VARCHAR(50)
 );
@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS computers (
 INSERT INTO computers (name, ip_address, status, status_note, installed_version) 
 VALUES
 
-('X90010000226', '10.176.48.18', 'Wartung', 'Installiert und konfiguriert', 'X979-1.0878910'),
+('X90010000226', '10.176.48.18', 'Installation/Wartung', 'Installiert und konfiguriert', 'X979-1.0878910'),
 ('X90010000224', '10.176.18.135', 'Reserviert', 'Reserviert für neue Hardware', 'X980-1.1976215'),
 ('X90010000225', '10.176.18.210', 'Ausser Betrieb', 'Defekt', 'X979-1.0878910'),
 ('X90010000223', '10.176.18.223', 'Testbereit', 'Von ***Reserviert*** auf ***Testbereit***', 'X978-1.0677980'),
