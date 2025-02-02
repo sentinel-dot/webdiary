@@ -2,10 +2,15 @@
 header("Content-Type: application/json");
 header("Access-Control-Allow-Origin: *");
 
-$pdo = new PDO("mysql:host=webdiary-db;dbname=webdiary", "root", "root");
+try {
+    $pdo = new PDO("mysql:host=webdiary-db;dbname=webdiary", "root", "root");
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-$stmt = $pdo->query("SELECT * FROM computers");
-$computers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $stmt = $pdo->query("SELECT * FROM computers");
+    $computers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-echo json_encode($computers);
+    echo json_encode($computers);
+} catch (PDOException $e) {
+    echo json_encode(["error" => "Connection failed: " . $e->getMessage()]);
+}
 ?>
