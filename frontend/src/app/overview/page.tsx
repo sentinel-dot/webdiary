@@ -50,11 +50,7 @@ export default function Uebersicht() {
         const aValue = a[key].split(".").map(Number);
         const bValue = b[key].split(".").map(Number);
         return direction === "asc" ? compareIP(aValue, bValue) : compareIP(bValue, aValue);
-      } //else if (key === "installed_version") {
-        //const aValue = a[key].split("-").map(Number);
-        //const bValue = b[key].split("-").map(Number);
-        //return direction === "asc" ? compareVersion(aValue, bValue) : compareVersion(bValue, aValue);
-      //}
+      }
       return 0;
     });
 
@@ -80,70 +76,93 @@ export default function Uebersicht() {
   };
 
   return (
-    <main className="p-6">
-      <h1 className="text-2xl font-bold mb-6 text-gray-800">Testrechner Übersicht</h1>
+    <main className="p-4">
+<div className="flex justify-between items-center mb-4">
+        <h1 className="text-xl font-bold">Testrechner Übersicht</h1>
+        <div className="flex gap-4">
+          {/* Dropdown 1 */}
+          <div className="relative group">
+            <button className="p-2 bg-gray-300 text-gray-800 font-semibold rounded-lg shadow-md hover:bg-gray-400 transition">
+              Dropdown 1
+            </button>
+            <div className="absolute right-0 mt-2 w-48 bg-white border rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+              <button className="block w-full text-left px-4 py-2 text-gray-800 hover:bg-gray-100">Dummy Button 1</button>
+              <button className="block w-full text-left px-4 py-2 text-gray-800 hover:bg-gray-100">Dummy Button 2</button>
+              <button className="block w-full text-left px-4 py-2 text-gray-800 hover:bg-gray-100">Dummy Button 3</button>
+            </div>
+          </div>
 
-      {loading ? (
-        <p className="text-gray-500">Lade Daten...</p>
-      ) : error ? (
-        <p className="text-red-500">Fehler: {error}</p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full border border-gray-300 rounded-lg shadow-md">
-            <thead>
-              <tr className="bg-gray-200 text-gray-700 text-left">
-                <th className="p-3 border">Nr.</th>
-                <th className="p-3 border cursor-pointer" onClick={() => sortData("name")}>
-                  Name
-                </th>
-                <th className="p-3 border cursor-pointer" onClick={() => sortData("ip_address")}>
-                  IP-Adresse
-                </th>
-                <th className="p-3 border cursor-pointer" onClick={() => sortData("status")}>
-                  Status
-                </th>
-                <th className="p-3 border cursor-pointer" onClick={() => sortData("status_note")}>
-                  Status Bemerkung
-                </th>
-                <th className="p-3 border cursor-pointer" onClick={() => sortData("installed_version")}>
-                  Installed Version
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {FE.map((fe, index) => (
-                <tr
-                  key={fe.id}
-                  className={`border ${
-                    index % 2 === 0 ? "bg-gray-50" : "bg-white"
-                  } hover:bg-gray-100 transition`}
-                >
-                  <td className="p-3 border">{index + 1}</td>
-                  <td className="p-3 border">{fe.name}</td>
-                  <td className="p-3 border">{fe.ip_address}</td>
-                  <td
-                    className={`p-3 border font-semibold ${
-                      fe.status === "Testbereit"
-                        ? "text-green-600"
-                        : fe.status === "Reserviert"
-                        ? "text-red-600"
-                        : fe.status === "Installation/Wartung"
-                        ? "text-blue-600"
-                        : fe.status === "AIS"
-                        ? "text-orange-600"
-                        : "text-gray-600"
-                    }`}
-                  >
-                    {fe.status}
-                  </td>
-                  <td className="p-3 border text-gray-700">{fe.status_note}</td>
-                  <td className="p-3 border text-gray-700">{fe.installed_version}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {/* Dropdown 2 */}
+          <div className="relative group">
+            <button className="p-2 bg-gray-300 text-gray-800 font-semibold rounded-lg shadow-md hover:bg-gray-400 transition">
+              Dropdown 2
+            </button>
+            <div className="absolute right-0 mt-2 w-48 bg-white border rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+              <button className="block w-full text-left px-4 py-2 text-gray-800 hover:bg-gray-100">Dummy Button 1</button>
+              <button className="block w-full text-left px-4 py-2 text-gray-800 hover:bg-gray-100">Dummy Button 2</button>
+            </div>
+          </div>
+
+          {/* Dropdown 3 */}
+          <div className="relative group">
+            <button className="p-2 bg-gray-300 text-gray-800 font-semibold rounded-lg shadow-md hover:bg-gray-400 transition">
+              Dropdown 3
+            </button>
+            <div className="absolute right-0 mt-2 w-48 bg-white border rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+              <button className="block w-full text-left px-4 py-2 text-gray-800 hover:bg-gray-100">Dummy Button 1</button>
+            </div>
+          </div>
         </div>
-      )}
+      </div>
+      <table className="min-w-full border">
+        <thead>
+          <tr>
+            <th className="border p-2 cursor-pointer" onClick={() => sortData("name")}>Name</th>
+            <th className="border p-2 cursor-pointer" onClick={() => sortData("ip_address")}>IP</th>
+            <th className="border p-2 cursor-pointer" onClick={() => sortData("status")}>Status</th>
+            <th className="border p-2 cursor-pointer" onClick={() => sortData("status_note")}>Bemerkung</th>
+            <th className="border p-2 cursor-pointer" onClick={() => sortData("installed_version")}>Version</th>
+          </tr>
+        </thead>
+        <tbody>
+        {FE.map((fe, index) => (
+          <tr
+            key={fe.id}
+            className={`border ${
+              index % 2 === 0 ? "bg-gray-50" : "bg-white"
+            } hover:bg-gray-100 transition`}
+          >
+            <td className="p-3 border">{index + 1}</td>
+            <td className="p-3 border">{fe.name}</td>
+            <td className="p-3 border">{fe.ip_address}</td>
+            <td
+              className={`p-3 border font-semibold ${
+                fe.status === "Testbereit"
+                  ? "text-green-600"
+                  : fe.status === "Reserviert"
+                  ? "text-red-600"
+                  : fe.status === "Installation/Wartung"
+                  ? "text-blue-600"
+                  : fe.status === "AIS"
+                  ? "text-orange-600"
+                  : "text-gray-600"
+              }`}
+            >
+              {fe.status}
+            </td>
+            <td className="p-3 border text-gray-700">{fe.status_note}</td>
+            <td className="p-3 border text-gray-700">{fe.installed_version}</td>
+          </tr>
+        ))}
+        </tbody>
+      </table>
     </main>
   );
 }
+
+
+
+
+
+
+

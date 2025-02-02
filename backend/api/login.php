@@ -24,7 +24,7 @@ if (isset($data['username']) && isset($data['password']))
     $password = $data['password'];
 
     // Sicheres SQL-Statement mit Prepared Statements
-    $stmt = $conn->prepare("SELECT password FROM users WHERE username = :username");
+    $stmt = $conn->prepare("SELECT password, role FROM users WHERE username = :username");
     $stmt->execute([":username" => $username]);
     
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -32,7 +32,7 @@ if (isset($data['username']) && isset($data['password']))
     //if ($user && password_verify($password, $user["password"]))
     if($user && $password == $user["password"]) 
     {
-        echo json_encode(["success" => true]);
+        echo json_encode(["success" => true, "role" => $user["role"]]);
     } 
     else 
     {

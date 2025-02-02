@@ -25,6 +25,8 @@ const Login = () => {
 
       const data = await response.json();
       if (data.success) {
+        sessionStorage.setItem("role", data.role);
+        console.log("Rolle:", data.role);
         router.push("/overview");
       } else {
         setError(data.error || "Falscher Benutzername oder Passwort.");
@@ -76,16 +78,6 @@ const Login = () => {
         >
           {loading ? "Lädt..." : "Login"}
         </button>
-
-        <p className="text-center text-gray-600 mt-4 text-sm">
-          Noch kein Konto?{" "}
-          <span
-            className="text-blue-600 cursor-pointer hover:underline"
-            onClick={() => router.push("/register")}
-          >
-            Hier registrieren
-          </span>
-        </p>
       </div>
     </div>
   );
