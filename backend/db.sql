@@ -16,11 +16,11 @@ CREATE TABLE IF NOT EXISTS computers (
 INSERT INTO computers (name, ip_address, status, status_note, installed_version) 
 VALUES
 
-('PC-101', '192.168.1.101', 'Testbereit', 'Alles in Ordnung', '1.0.0'),
-('PC-102', '192.168.1.102', 'Reserviert', 'Wartung nötig', '1.1.0'),
-('PC-103', '192.168.1.103', 'Ausser Betrieb', 'Defekt', '1.0.0'),
-('PC-104', '192.168.1.104', 'Wartung', 'Installiert und konfiguriert', '1.2.0'),
-('PC-105', '192.168.1.105', 'AIS', 'Für interne Zwecke', '1.0.0');
+('X90010000226', '10.176.48.18', 'Wartung', 'Installiert und konfiguriert', 'X979-1.0878910'),
+('X90010000224', '10.176.18.135', 'Reserviert', 'Reserviert für neue Hardware', 'X980-1.1976215'),
+('X90010000225', '10.176.18.210', 'Ausser Betrieb', 'Defekt', 'X979-1.0878910'),
+('X90010000223', '10.176.18.223', 'Testbereit', 'Von ***Reserviert*** auf ***Testbereit***', 'X978-1.0677980'),
+('X90010000227', '10.176.48.17', 'AIS', 'Die NHW AIS Beta wird getestet', 'X981-1.7301961');
 
 -- Erstelle eine Tabelle für Benutzer
 CREATE TABLE IF NOT EXISTS users (
