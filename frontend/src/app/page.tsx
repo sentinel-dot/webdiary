@@ -1,7 +1,7 @@
 // src/app/page.tsx
 "use client"; // Wichtig für interaktive Komponenten
 import { useEffect, useState } from "react";
-//import { useRouter } from "next/router";
+
 
 interface FE {
   id: number;

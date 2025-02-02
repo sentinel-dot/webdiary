@@ -12,14 +12,15 @@ CREATE TABLE IF NOT EXISTS computers (
 );
 
 -- Füge Dummy-Daten hinzu, wenn die Tabelle gerade erstellt wurde
+
 INSERT INTO computers (name, ip_address, status, status_note, installed_version) 
 VALUES
+
 ('PC-101', '192.168.1.101', 'Testbereit', 'Alles in Ordnung', '1.0.0'),
 ('PC-102', '192.168.1.102', 'Reserviert', 'Wartung nötig', '1.1.0'),
 ('PC-103', '192.168.1.103', 'Ausser Betrieb', 'Defekt', '1.0.0'),
 ('PC-104', '192.168.1.104', 'Wartung', 'Installiert und konfiguriert', '1.2.0'),
 ('PC-105', '192.168.1.105', 'AIS', 'Für interne Zwecke', '1.0.0');
-
 
 -- Erstelle eine Tabelle für Benutzer
 CREATE TABLE IF NOT EXISTS users (
@@ -33,4 +34,3 @@ CREATE TABLE IF NOT EXISTS users (
 INSERT INTO users (username, password, role) 
 VALUES
 ('admin', 'admin', 'admin-user');
-
