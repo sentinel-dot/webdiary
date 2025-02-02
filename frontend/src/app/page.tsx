@@ -14,18 +14,12 @@ interface FE {
 
 export default function Home() {
   const [FE, setFE] = useState<FE[]>([]);
-  //const router = useRouter();
 
   useEffect(() => {
-    const role = localStorage.getItem("role");
-    //if (!role) {
-    //  router.push("/login");
-    //} else {
       fetch("http://localhost:8080/api/get_FEs.php") // API-URL anpassen
         .then((res) => res.json())
         .then((data) => setFE(data))
         .catch((err) => console.error("Fehler beim Laden:", err));
-    //}
   }, []);
 
   return (
