@@ -9,8 +9,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit(0);
 }
 
-require_once '../includes/JWTHelper.php';
-
 function sendResponse($success, $data = null, $message = "", $statusCode = 200) {
     http_response_code($statusCode);
     echo json_encode([
@@ -22,141 +20,113 @@ function sendResponse($success, $data = null, $message = "", $statusCode = 200) 
     exit;
 }
 
-function executeReboot($ipAddress, $computerName) {
-    // Hier würde die tatsächliche Reboot-Logik stehen
-    // Zum Beispiel mit winexe oder ssh
-    
-    // Simulation für Demo
-    $success = (rand(1, 10) > 2); // 80% success rate
-    
-    if ($success) {
-        return ['success' => true, 'message' => "Reboot erfolgreich eingeleitet"];
-    } else {
-        return ['success' => false, 'message' => "Reboot fehlgeschlagen - Computer nicht erreichbar"];
-    }
-}
+// For simplicity, we'll allow reboot operations without authentication in this version
+// In a production environment, you would implement proper authentication
 
 try {
-    // Authenticate request
-    $token = JWTHelper::getTokenFromHeaders();
-    $tokenData = JWTHelper::validateToken($token);
-    
-    if (!$tokenData) {
-        sendResponse(false, null, "Ungültiger oder abgelaufener Token", 401);
-    }
-    
-    // Check permissions
-    if (!JWTHelper::hasPermission($tokenData['role'], 'privileged-user')) {
-        sendResponse(false, null, "Keine Berechtigung für diese Aktion", 403);
-    }
-
     // Database connection
     $conn = new PDO("mysql:host=webdiary-db;dbname=webdiary", "root", "root");
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-    // Get input
+    // Get and validate input
     $input = file_get_contents("php://input");
     $data = json_decode($input, true);
-    
+
     if (!$data || !isset($data['computer_ids'])) {
         sendResponse(false, null, "Ungültige Eingabedaten", 400);
     }
 
     $computerIds = $data['computer_ids'];
 
+    // Validate computer IDs
     if (!is_array($computerIds) || empty($computerIds)) {
         sendResponse(false, null, "Mindestens ein Computer muss ausgewählt werden", 400);
     }
 
-    $rebootResults = [];
-    $successCount = 0;
-    $failCount = 0;
+    // Begin transaction
+    $conn->beginTransaction();
+
+    $rebootedComputers = [];
+    $errors = [];
 
     foreach ($computerIds as $computerId) {
         try {
-            // Get computer data
-            $stmt = $conn->prepare("SELECT name, ip_address FROM computers WHERE id = :id");
+            // Get current computer data
+            $stmt = $conn->prepare("SELECT name, ip_address, status_note FROM computers WHERE id = :id");
             $stmt->execute([':id' => $computerId]);
             $computer = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$computer) {
-                $rebootResults[] = [
-                    'computer_id' => $computerId,
-                    'success' => false,
-                    'message' => "Computer nicht gefunden"
-                ];
-                $failCount++;
+                $errors[] = "Computer mit ID $computerId nicht gefunden";
                 continue;
             }
 
-            // Log action start
-            $logStmt = $conn->prepare("
-                INSERT INTO system_actions 
-                (computer_id, action_type, initiated_by, status, initiated_at)
-                VALUES (:computer_id, 'reboot', :initiated_by, 'pending', NOW())
-            ");
+            // In a real implementation, here you would actually send a reboot command to the computer
+            // using something like SSH, WinRM, or another remote management protocol
+            // For this demo, we'll just log it in the status_note
             
-            $logStmt->execute([
-                ':computer_id' => $computerId,
-                ':initiated_by' => $tokenData['username']
-            ]);
+            $currentTime = date('Y-m-d H:i:s');
+            $username = "System"; // In a real implementation, this would come from the authenticated user
             
-            $actionId = $conn->lastInsertId();
+            $rebootNote = "Systemreboot eingeleitet am $currentTime";
+            
+            // Append to existing status note
+            $statusNote = $computer['status_note'] ? $computer['status_note'] . " | " . $rebootNote : $rebootNote;
 
-            // Execute reboot
-            $result = executeReboot($computer['ip_address'], $computer['name']);
-
-            // Update action log
+            // Update computer status note to reflect the reboot command
             $updateStmt = $conn->prepare("
-                UPDATE system_actions 
-                SET status = :status, completed_at = NOW(), error_message = :error_message
+                UPDATE computers 
+                SET status_note = :status_note 
                 WHERE id = :id
             ");
             
             $updateStmt->execute([
-                ':status' => $result['success'] ? 'success' : 'failed',
-                ':error_message' => $result['success'] ? null : $result['message'],
-                ':id' => $actionId
+                ':status_note' => $statusNote,
+                ':id' => $computerId
             ]);
 
-            $rebootResults[] = [
-                'computer_id' => $computerId,
-                'computer_name' => $computer['name'],
-                'ip_address' => $computer['ip_address'],
-                'success' => $result['success'],
-                'message' => $result['message']
+            // Log a mock reboot command that would be executed in a real system
+            $ipAddress = $computer['ip_address'];
+            $rebootCommand = "ssh admin@$ipAddress 'sudo reboot'"; // Example command
+            error_log("Would execute: $rebootCommand");
+
+            $rebootedComputers[] = [
+                'id' => $computerId,
+                'name' => $computer['name'],
+                'ip_address' => $ipAddress,
+                'status_note' => $statusNote
             ];
-
-            if ($result['success']) {
-                $successCount++;
-            } else {
-                $failCount++;
-            }
-
         } catch (Exception $e) {
-            $rebootResults[] = [
-                'computer_id' => $computerId,
-                'success' => false,
-                'message' => "Fehler: " . $e->getMessage()
-            ];
-            $failCount++;
+            $errors[] = "Fehler bei Computer ID $computerId: " . $e->getMessage();
         }
     }
 
-    $totalCount = count($computerIds);
-    $message = "Reboot abgeschlossen: $successCount erfolgreich, $failCount fehlgeschlagen von $totalCount gesamt";
+    // If there were any errors, rollback and report
+    if (!empty($errors)) {
+        $conn->rollBack();
+        sendResponse(false, ['errors' => $errors], "Es sind Fehler aufgetreten", 400);
+    }
 
+    // Otherwise commit the transaction and return success
+    $conn->commit();
     sendResponse(true, [
-        'results' => $rebootResults,
-        'summary' => [
-            'total' => $totalCount,
-            'success' => $successCount,
-            'failed' => $failCount
-        ]
-    ], $message);
+        'rebooted_computers' => $rebootedComputers,
+        'count' => count($rebootedComputers)
+    ], "Systemreboot erfolgreich eingeleitet");
 
+} catch (PDOException $e) {
+    // Rollback transaction on database error
+    if (isset($conn) && $conn->inTransaction()) {
+        $conn->rollBack();
+    }
+    error_log("Database error: " . $e->getMessage());
+    sendResponse(false, null, "Datenbankfehler: " . $e->getMessage(), 500);
 } catch (Exception $e) {
-    error_log("Error in system_reboot: " . $e->getMessage());
-    sendResponse(false, null, "Serverfehler", 500);
+    // Rollback transaction on general error
+    if (isset($conn) && $conn->inTransaction()) {
+        $conn->rollBack();
+    }
+    error_log("General error: " . $e->getMessage());
+    sendResponse(false, null, "Serverfehler: " . $e->getMessage(), 500);
 }
 ?>

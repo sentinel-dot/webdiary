@@ -1,5 +1,5 @@
 <?php
-// backend/api/update_status.php
+// backend/api/update_version.php
 header("Content-Type: application/json");
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Headers: Content-Type, Authorization");
@@ -20,7 +20,7 @@ function sendResponse($success, $data = null, $message = "", $statusCode = 200) 
     exit;
 }
 
-// For simplicity, we'll allow status updates without authentication in this version
+// For simplicity, we'll allow version updates without authentication in this version
 // In a production environment, you would implement proper authentication
 
 try {
@@ -32,28 +32,21 @@ try {
     $input = file_get_contents("php://input");
     $data = json_decode($input, true);
 
-    if (!$data || !isset($data['computer_ids']) || !isset($data['status'])) {
+    if (!$data || !isset($data['computer_ids']) || !isset($data['version'])) {
         sendResponse(false, null, "Ungültige Eingabedaten", 400);
     }
 
     $computerIds = $data['computer_ids'];
-    $newStatus = $data['status'];
-    $statusNote = $data['status_note'] ?? '';
+    $newVersion = $data['version'];
 
-    // Validate status
-    $validStatuses = ['Testbereit', 'Reserviert', 'Ausser Betrieb', 'Installation/Wartung', 'AIS'];
-    if (!in_array($newStatus, $validStatuses)) {
-        sendResponse(false, null, "Ungültiger Status", 400);
+    // Validate version (basic validation)
+    if (empty(trim($newVersion))) {
+        sendResponse(false, null, "Version darf nicht leer sein", 400);
     }
 
     // Validate computer IDs
     if (!is_array($computerIds) || empty($computerIds)) {
         sendResponse(false, null, "Mindestens ein Computer muss ausgewählt werden", 400);
-    }
-
-    // Validate that "Reserviert" requires a note
-    if ($newStatus === 'Reserviert' && empty(trim($statusNote))) {
-        sendResponse(false, null, "Bei Status 'Reserviert' ist eine Bemerkung erforderlich", 400);
     }
 
     // Begin transaction
@@ -65,7 +58,7 @@ try {
     foreach ($computerIds as $computerId) {
         try {
             // Get current computer data
-            $stmt = $conn->prepare("SELECT name, status, status_note FROM computers WHERE id = :id");
+            $stmt = $conn->prepare("SELECT name, installed_version, status_note FROM computers WHERE id = :id");
             $stmt->execute([':id' => $computerId]);
             $computer = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -77,34 +70,31 @@ try {
             // Prepare status note with history
             $currentTime = date('Y-m-d H:i:s');
             $username = "System"; // In a real implementation, this would come from the authenticated user
-            $oldStatus = $computer['status'];
+            $oldVersion = $computer['installed_version'];
             
-            $historyNote = "Von ***$oldStatus*** auf ***$newStatus*** geändert am $currentTime";
+            $historyNote = "Installierte Version geändert von '$oldVersion' auf '$newVersion' am $currentTime";
             
-            if (!empty($statusNote)) {
-                $finalNote = $statusNote . " (" . $historyNote . ")";
-            } else {
-                $finalNote = $historyNote;
-            }
+            // Append to existing status note
+            $statusNote = $computer['status_note'] ? $computer['status_note'] . " | " . $historyNote : $historyNote;
 
             // Update computer
             $updateStmt = $conn->prepare("
                 UPDATE computers 
-                SET status = :status, status_note = :status_note 
+                SET installed_version = :version, status_note = :status_note 
                 WHERE id = :id
             ");
             
             $updateStmt->execute([
-                ':status' => $newStatus,
-                ':status_note' => $finalNote,
+                ':version' => $newVersion,
+                ':status_note' => $statusNote,
                 ':id' => $computerId
             ]);
 
             $updatedComputers[] = [
                 'id' => $computerId,
                 'name' => $computer['name'],
-                'status' => $newStatus,
-                'status_note' => $finalNote
+                'installed_version' => $newVersion,
+                'status_note' => $statusNote
             ];
         } catch (Exception $e) {
             $errors[] = "Fehler bei Computer ID $computerId: " . $e->getMessage();
@@ -122,7 +112,7 @@ try {
     sendResponse(true, [
         'updated_computers' => $updatedComputers,
         'count' => count($updatedComputers)
-    ], "Status erfolgreich aktualisiert");
+    ], "Version erfolgreich aktualisiert");
 
 } catch (PDOException $e) {
     // Rollback transaction on database error
