@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
+import { useRouter } from "next/navigation";
 
 interface FE {
   id: number;
@@ -43,7 +44,8 @@ const Toast: React.FC<{ toast: Toast; onRemove: (id: number) => void }> = ({ toa
 };
 
 export default function Overview() {
-  const { user, hasRole, logout } = useAuth();
+  const { user, hasRole, logout, isAuthenticated } = useAuth();
+  const router = useRouter();
   const [computers, setComputers] = useState<FE[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -65,9 +67,19 @@ export default function Overview() {
 
   const statusOptions = ['Testbereit', 'Reserviert', 'Ausser Betrieb', 'Installation/Wartung', 'AIS'];
 
+  // Prüfe Authentifizierung und leite bei Bedarf weiter
   useEffect(() => {
-    fetchComputers();
-  }, []);
+    if (!isAuthenticated) {
+      router.push("/login");
+      return;
+    }
+  }, [isAuthenticated, router]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchComputers();
+    }
+  }, [isAuthenticated]);
 
   const addToast = (message: string, type: 'success' | 'error' | 'info') => {
     const id = Date.now();
@@ -91,6 +103,15 @@ export default function Overview() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleLogout = () => {
+    addToast("Erfolgreich abgemeldet", "success");
+    logout();
+    // Kurze Verzögerung für die Toast-Nachricht, dann zur Login-Seite
+    setTimeout(() => {
+      router.push("/login");
+    }, 1000);
   };
 
   const handleSelectAll = (checked: boolean) => {
@@ -243,6 +264,15 @@ export default function Overview() {
     return 0;
   };
 
+  // Zeige Loading-Spinner wenn nicht authentifiziert
+  if (!isAuthenticated) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -291,7 +321,7 @@ export default function Overview() {
             {selectedComputers.length} von {computers.length} ausgewählt
           </span>
           <button
-            onClick={logout}
+            onClick={handleLogout}
             className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
           >
             Abmelden
