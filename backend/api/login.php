@@ -1,16 +1,13 @@
 <?php
-// backend/api/login.php
 header("Content-Type: application/json");
 header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Headers: Content-Type, Authorization");
+header("Access-Control-Allow-Headers: Content-Type");
 header("Access-Control-Allow-Methods: POST, OPTIONS");
 
 // Handle preflight requests
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit(0);
 }
-
-require_once '../includes/JWTHelper.php';
 
 function sendResponse($success, $data = null, $message = "", $statusCode = 200) {
     http_response_code($statusCode);
@@ -28,7 +25,7 @@ function validateInput($data) {
         sendResponse(false, null, "Benutzername und Passwort sind erforderlich", 400);
     }
     
-    if (strlen(trim($data['username'])) < 3) {
+    if (strlen($data['username']) < 3) {
         sendResponse(false, null, "Benutzername muss mindestens 3 Zeichen lang sein", 400);
     }
     
@@ -39,47 +36,12 @@ function validateInput($data) {
     return true;
 }
 
-function initializeRateLimit() {
-    session_start();
-    $attemptKey = 'login_attempts_' . $_SERVER['REMOTE_ADDR'];
-    $timeKey = 'last_attempt_' . $_SERVER['REMOTE_ADDR'];
-    
-    $attempts = $_SESSION[$attemptKey] ?? 0;
-    $lastAttempt = $_SESSION[$timeKey] ?? 0;
-    
-    // Reset counter after 15 minutes
-    if (time() - $lastAttempt > 900) {
-        $_SESSION[$attemptKey] = 0;
-        $attempts = 0;
-    }
-    
-    if ($attempts >= 5) {
-        $remainingTime = 900 - (time() - $lastAttempt);
-        sendResponse(false, null, "Zu viele Anmeldeversuche. Bitte warten Sie " . ceil($remainingTime / 60) . " Minuten.", 429);
-    }
-    
-    return [$attemptKey, $timeKey];
-}
-
-function recordFailedAttempt($attemptKey, $timeKey) {
-    $_SESSION[$attemptKey] = ($_SESSION[$attemptKey] ?? 0) + 1;
-    $_SESSION[$timeKey] = time();
-}
-
-function clearFailedAttempts($attemptKey, $timeKey) {
-    unset($_SESSION[$attemptKey]);
-    unset($_SESSION[$timeKey]);
-}
-
 try {
-    // Initialize rate limiting
-    list($attemptKey, $timeKey) = initializeRateLimit();
-    
-    // Database connection
+    // Datenbankverbindung
     $conn = new PDO("mysql:host=webdiary-db;dbname=webdiary", "root", "root");
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     
-    // Read and validate JSON input
+    // JSON-Daten lesen
     $input = file_get_contents("php://input");
     $data = json_decode($input, true);
     
@@ -92,24 +54,31 @@ try {
     $username = trim($data['username']);
     $password = $data['password'];
     
-    // Load user from database
+    // Rate limiting (einfach)
+    session_start();
+    $attemptKey = 'login_attempts_' . $_SERVER['REMOTE_ADDR'];
+    $attempts = $_SESSION[$attemptKey] ?? 0;
+    
+    if ($attempts >= 5) {
+        sendResponse(false, null, "Zu viele Anmeldeversuche. Bitte warten Sie 15 Minuten.", 429);
+    }
+    
+    // Benutzer aus Datenbank laden
     $stmt = $conn->prepare("SELECT id, username, password, role FROM users WHERE username = :username");
     $stmt->execute([":username" => $username]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if (!$user) {
-        recordFailedAttempt($attemptKey, $timeKey);
+        $_SESSION[$attemptKey] = $attempts + 1;
         sendResponse(false, null, "Ungültige Anmeldedaten", 401);
     }
     
-    // Verify password (both hashed and plain text for migration)
+    // Passwort überprüfen (sowohl gehashed als auch plain text für Migration)
     $passwordValid = false;
-    
     if (password_verify($password, $user["password"])) {
-        // Password is already hashed
         $passwordValid = true;
     } elseif ($password === $user["password"]) {
-        // Legacy plain text password - hash it for future use
+        // Legacy: Plain text Passwort - hash es für die Zukunft
         $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
         $updateStmt = $conn->prepare("UPDATE users SET password = :password WHERE id = :id");
         $updateStmt->execute([":password" => $hashedPassword, ":id" => $user['id']]);
@@ -117,45 +86,39 @@ try {
     }
     
     if (!$passwordValid) {
-        recordFailedAttempt($attemptKey, $timeKey);
+        $_SESSION[$attemptKey] = $attempts + 1;
         sendResponse(false, null, "Ungültige Anmeldedaten", 401);
     }
     
-    // Successful login - clear failed attempts
-    clearFailedAttempts($attemptKey, $timeKey);
+    // Erfolgreiche Anmeldung - Reset attempts
+    unset($_SESSION[$attemptKey]);
     
-    // Update last login timestamp
-    $updateLoginStmt = $conn->prepare("UPDATE users SET last_login = NOW() WHERE id = :id");
-    $updateLoginStmt->execute([":id" => $user['id']]);
-    
-    // Generate JWT token
+    // JWT Token generieren (vereinfacht aber korrekt base64 enkodiert)
     $tokenPayload = [
-        'user_id' => (int)$user['id'],
+        'user_id' => $user['id'],
         'username' => $user['username'],
         'role' => $user['role'],
-        'iat' => time(),
-        'exp' => time() + (24 * 60 * 60), // 24 hours
-        'iss' => 'webdiary-system',
-        'aud' => 'webdiary-users'
+        'exp' => time() + (24 * 60 * 60), // 24 Stunden
+        'iat' => time()
     ];
     
-    $token = JWTHelper::encode($tokenPayload);
+    // Korrekte Base64-Kodierung des JSON-Strings
+    $token = base64_encode(json_encode($tokenPayload));
     
     sendResponse(true, [
         'user' => [
-            'id' => (int)$user['id'],
+            'id' => $user['id'],
             'username' => $user['username'],
             'role' => $user['role']
         ],
-        'token' => $token,
-        'expires_in' => 24 * 60 * 60, // seconds
-        'token_type' => 'Bearer'
+        'token' => $token
     ], "Erfolgreich angemeldet");
     
 } catch (PDOException $e) {
-    error_log("Database error in login: " . $e->getMessage());
+    error_log("Database error: " . $e->getMessage());
     sendResponse(false, null, "Datenbankfehler", 500);
 } catch (Exception $e) {
-    error_log("General error in login: " . $e->getMessage());
+    error_log("General error: " . $e->getMessage());
     sendResponse(false, null, "Serverfehler", 500);
 }
+?>

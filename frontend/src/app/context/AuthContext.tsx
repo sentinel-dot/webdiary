@@ -24,6 +24,32 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
+// Hilfsfunktion zum sicheren Dekodieren von Base64-Token
+const decodeToken = (token: string) => {
+  try {
+    const decoded = atob(token);
+    return JSON.parse(decoded);
+  } catch (error) {
+    console.error('Error decoding token:', error);
+    return null;
+  }
+};
+
+// Hilfsfunktion zum Validieren von Token
+const isTokenValid = (token: string): boolean => {
+  try {
+    const tokenData = decodeToken(token);
+    if (!tokenData || !tokenData.exp) {
+      return false;
+    }
+    
+    // Check if token is expired (with 1 minute buffer)
+    return tokenData.exp > (Date.now() / 1000) + 60;
+  } catch (error) {
+    return false;
+  }
+};
+
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -37,14 +63,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (storedToken && storedUser) {
       try {
         const parsedUser = JSON.parse(storedUser);
-        const tokenData = JSON.parse(atob(storedToken));
         
-        // Check if token is expired
-        if (tokenData.exp > Date.now() / 1000) {
+        // Check if token is valid
+        if (isTokenValid(storedToken)) {
           setUser(parsedUser);
           setToken(storedToken);
         } else {
-          // Token expired, clear storage
+          // Token expired or invalid, clear storage
           localStorage.removeItem('authToken');
           localStorage.removeItem('authUser');
         }
@@ -59,18 +84,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Auto logout before token expires
   useEffect(() => {
-    if (token) {
+    if (token && isTokenValid(token)) {
       try {
-        const tokenData = JSON.parse(atob(token));
-        const timeUntilExpiry = (tokenData.exp * 1000) - Date.now();
-        
-        const timeout = setTimeout(() => {
-          logout();
-        }, timeUntilExpiry - 60000); // Logout 1 minute before expiry
-        
-        return () => clearTimeout(timeout);
+        const tokenData = decodeToken(token);
+        if (tokenData && tokenData.exp) {
+          const timeUntilExpiry = (tokenData.exp * 1000) - Date.now();
+          
+          // Logout 1 minute before expiry
+          const timeout = setTimeout(() => {
+            console.log('Token expired, logging out...');
+            logout();
+          }, Math.max(timeUntilExpiry - 60000, 0));
+          
+          return () => clearTimeout(timeout);
+        }
       } catch (error) {
-        console.error('Error parsing token:', error);
+        console.error('Error setting up token expiry timeout:', error);
+        logout();
       }
     }
   }, [token]);
@@ -88,7 +118,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       const data = await response.json();
 
-      if (data.success) {
+      if (data.success && data.data.token) {
+        // Validate the received token
+        if (!isTokenValid(data.data.token)) {
+          throw new Error('Received invalid token from server');
+        }
+
         setUser(data.data.user);
         setToken(data.data.token);
         
@@ -131,7 +166,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return userLevel >= requiredLevel;
   };
 
-  const isAuthenticated = !!user && !!token;
+  const isAuthenticated = !!user && !!token && (token ? isTokenValid(token) : false);
 
   const value: AuthContextType = {
     user,
