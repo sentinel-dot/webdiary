@@ -18,34 +18,59 @@ class JWTHelper {
     }
 
     public static function decode($jwt) {
-        if (!$jwt) return false;
-        
-        $parts = explode('.', $jwt);
-        if (count($parts) !== 3) {
+        try {
+            if (!$jwt) {
+                error_log("JWT decode failed: Token is empty");
+                return false;
+            }
+            
+            $parts = explode('.', $jwt);
+            if (count($parts) !== 3) {
+                error_log("JWT decode failed: Invalid token format (expected 3 parts, got " . count($parts) . ")");
+                return false;
+            }
+
+            list($base64Header, $base64Payload, $base64Signature) = $parts;
+
+            // Verify signature
+            $signature = hash_hmac('sha256', $base64Header . "." . $base64Payload, self::$secretKey, true);
+            $base64UrlSignature = str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($signature));
+
+            if ($base64Signature !== $base64UrlSignature) {
+                error_log("JWT decode failed: Invalid signature");
+                return false;
+            }
+
+            // Decode payload
+            $decodedPayload = base64_decode(str_replace(['-', '_'], ['+', '/'], $base64Payload));
+            if (!$decodedPayload) {
+                error_log("JWT decode failed: Could not base64 decode payload");
+                return false;
+            }
+            
+            $payload = json_decode($decodedPayload, true);
+            if (!$payload) {
+                error_log("JWT decode failed: Could not JSON decode payload");
+                return false;
+            }
+
+            // Check expiration
+            if (isset($payload['exp']) && $payload['exp'] < time()) {
+                error_log("JWT decode failed: Token expired");
+                return false;
+            }
+            
+            // Verify required fields
+            if (!isset($payload['id']) || !isset($payload['username']) || !isset($payload['role'])) {
+                error_log("JWT decode failed: Missing required fields in payload");
+                return false;
+            }
+
+            return $payload;
+        } catch (Exception $e) {
+            error_log("JWT decode exception: " . $e->getMessage());
             return false;
         }
-
-        list($base64Header, $base64Payload, $base64Signature) = $parts;
-
-        // Verify signature
-        $signature = hash_hmac('sha256', $base64Header . "." . $base64Payload, self::$secretKey, true);
-        $base64UrlSignature = str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($signature));
-
-        if ($base64Signature !== $base64UrlSignature) {
-            return false;
-        }
-
-        // Decode payload
-        $payload = json_decode(base64_decode(str_replace(['-', '_'], ['+', '/'], $base64Payload)), true);
-        
-        if (!$payload) return false;
-
-        // Check expiration
-        if (isset($payload['exp']) && $payload['exp'] < time()) {
-            return false;
-        }
-
-        return $payload;
     }
 
     public static function validateToken($token) {
@@ -66,13 +91,25 @@ class JWTHelper {
     }
 
     public static function getTokenFromHeaders() {
-        $headers = getallheaders();
-        $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
-        
-        if (preg_match('/Bearer\s+(.*)$/i', $authHeader, $matches)) {
-            return $matches[1];
+        try {
+            $headers = getallheaders();
+            $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
+            
+            if (empty($authHeader)) {
+                // No Authorization header found
+                return null;
+            }
+            
+            if (preg_match('/Bearer\s+(.*)$/i', $authHeader, $matches)) {
+                return $matches[1];
+            }
+            
+            // Authorization header exists but doesn't match Bearer format
+            error_log("Invalid Authorization header format: " . substr($authHeader, 0, 30) . "...");
+            return null;
+        } catch (Exception $e) {
+            error_log("Error getting token from headers: " . $e->getMessage());
+            return null;
         }
-        
-        return null;
     }
 }
