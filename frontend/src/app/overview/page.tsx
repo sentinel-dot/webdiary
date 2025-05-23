@@ -44,10 +44,10 @@ const Toast: React.FC<{ toast: Toast; onRemove: (id: number) => void }> = ({ toa
 };
 
 export default function Overview() {
-  const { user, hasRole, logout, isAuthenticated } = useAuth();
+  const { user, hasRole, logout, isAuthenticated, loading } = useAuth();
   const router = useRouter();
   const [computers, setComputers] = useState<FE[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedComputers, setSelectedComputers] = useState<number[]>([]);
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -67,19 +67,22 @@ export default function Overview() {
 
   const statusOptions = ['Testbereit', 'Reserviert', 'Ausser Betrieb', 'Installation/Wartung', 'AIS'];
 
-  // Prüfe Authentifizierung und leite bei Bedarf weiter
+  // Check authentication and redirect if needed - BUT ONLY AFTER loading is complete
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!loading && !isAuthenticated) {
+      console.log("Not authenticated, redirecting to login");
       router.push("/login");
       return;
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, loading, router]);
 
+  // Fetch computers only when authenticated and loading is complete
   useEffect(() => {
-    if (isAuthenticated) {
+    if (!loading && isAuthenticated) {
+      console.log("User authenticated, fetching computers");
       fetchComputers();
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, loading]);
 
   const addToast = (message: string, type: 'success' | 'error' | 'info') => {
     const id = Date.now();
@@ -93,6 +96,7 @@ export default function Overview() {
 
   const fetchComputers = async () => {
     try {
+      setDataLoading(true);
       const response = await fetch("http://localhost:8080/api/get_FEs.php");
       if (!response.ok) throw new Error("Netzwerkantwort war nicht ok");
       const data = await response.json();
@@ -101,7 +105,7 @@ export default function Overview() {
       setError(err.message);
       addToast("Fehler beim Laden der Daten", "error");
     } finally {
-      setLoading(false);
+      setDataLoading(false);
     }
   };
 
@@ -264,19 +268,37 @@ export default function Overview() {
     return 0;
   };
 
-  // Zeige Loading-Spinner wenn nicht authentifiziert
-  if (!isAuthenticated) {
+  // Show loading spinner while auth is loading
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Authentifizierung wird überprüft...</p>
+        </div>
       </div>
     );
   }
 
-  if (loading) {
+  // Only show content if authenticated (loading is complete and user is authenticated)
+  if (!isAuthenticated) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Weiterleitung zur Anmeldung...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (dataLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Daten werden geladen...</p>
+        </div>
       </div>
     );
   }
