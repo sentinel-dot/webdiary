@@ -9,6 +9,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit(0);
 }
 
+require_once '../includes/JWTHelper.php';
+
 function sendResponse($success, $data = null, $message = "", $statusCode = 200) {
     http_response_code($statusCode);
     echo json_encode([
@@ -20,57 +22,22 @@ function sendResponse($success, $data = null, $message = "", $statusCode = 200) 
     exit;
 }
 
-function validateToken($token) {
-    if (!$token) return false;
+function authenticateRequest() {
+    $token = JWTHelper::getTokenFromHeaders();
     
-    try {
-        $tokenData = json_decode(base64_decode($token), true);
-        if (!$tokenData || $tokenData['exp'] < time()) {
-            return false;
-        }
-        return $tokenData;
-    } catch (Exception $e) {
-        return false;
+    if (!$token) {
+        sendResponse(false, null, "Token fehlt", 401);
     }
-}
-
-function hasPermission($userRole, $requiredRole) {
-    $roleHierarchy = [
-        'viewer-user' => 1,
-        'privileged-user' => 2,
-        'admin-user' => 3
-    ];
     
-    $userLevel = $roleHierarchy[$userRole] ?? 0;
-    $requiredLevel = $roleHierarchy[$requiredRole] ?? 0;
-    
-    return $userLevel >= $requiredLevel;
-}
-
-try {
-    // Token validation
-    $headers = getallheaders();
-    $authHeader = $headers['Authorization'] ?? '';
-    $token = str_replace('Bearer ', '', $authHeader);
-    
-    $tokenData = validateToken($token);
+    $tokenData = JWTHelper::validateToken($token);
     if (!$tokenData) {
         sendResponse(false, null, "Ungültiger oder abgelaufener Token", 401);
     }
     
-    // Check permissions
-    if (!hasPermission($tokenData['role'], 'privileged-user')) {
-        sendResponse(false, null, "Keine Berechtigung für diese Aktion", 403);
-    }
+    return $tokenData;
+}
 
-    // Database connection
-    $conn = new PDO("mysql:host=webdiary-db;dbname=webdiary", "root", "root");
-    $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-    // Get and validate input
-    $input = file_get_contents("php://input");
-    $data = json_decode($input, true);
-
+function validateInput($data) {
     if (!$data || !isset($data['computer_ids']) || !isset($data['status'])) {
         sendResponse(false, null, "Ungültige Eingabedaten", 400);
     }
@@ -90,10 +57,63 @@ try {
         sendResponse(false, null, "Mindestens ein Computer muss ausgewählt werden", 400);
     }
 
+    foreach ($computerIds as $id) {
+        if (!is_numeric($id) || $id <= 0) {
+            sendResponse(false, null, "Ungültige Computer-ID", 400);
+        }
+    }
+
     // Validate that "Reserviert" requires a note
     if ($newStatus === 'Reserviert' && empty(trim($statusNote))) {
         sendResponse(false, null, "Bei Status 'Reserviert' ist eine Bemerkung erforderlich", 400);
     }
+
+    return [$computerIds, $newStatus, $statusNote];
+}
+
+function logStatusChange($conn, $computerId, $oldStatus, $newStatus, $username, $note) {
+    try {
+        $stmt = $conn->prepare("
+            INSERT INTO status_changes 
+            (computer_id, old_status, new_status, changed_by, change_note, changed_at) 
+            VALUES (:computer_id, :old_status, :new_status, :changed_by, :change_note, NOW())
+        ");
+        
+        $stmt->execute([
+            ':computer_id' => $computerId,
+            ':old_status' => $oldStatus,
+            ':new_status' => $newStatus,
+            ':changed_by' => $username,
+            ':change_note' => $note
+        ]);
+    } catch (PDOException $e) {
+        // Log the error but don't fail the main operation
+        error_log("Failed to log status change: " . $e->getMessage());
+    }
+}
+
+try {
+    // Authenticate request
+    $tokenData = authenticateRequest();
+    
+    // Check permissions
+    if (!JWTHelper::hasPermission($tokenData['role'], 'privileged-user')) {
+        sendResponse(false, null, "Keine Berechtigung für diese Aktion", 403);
+    }
+
+    // Database connection
+    $conn = new PDO("mysql:host=webdiary-db;dbname=webdiary", "root", "root");
+    $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+    // Get and validate input
+    $input = file_get_contents("php://input");
+    $data = json_decode($input, true);
+    
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        sendResponse(false, null, "Ungültige JSON-Daten", 400);
+    }
+
+    list($computerIds, $newStatus, $statusNote) = validateInput($data);
 
     // Begin transaction
     $conn->beginTransaction();
@@ -113,10 +133,17 @@ try {
                 continue;
             }
 
+            $oldStatus = $computer['status'];
+            
+            // Skip if status is already the same
+            if ($oldStatus === $newStatus) {
+                $errors[] = "Computer {$computer['name']} hat bereits den Status '$newStatus'";
+                continue;
+            }
+
             // Prepare status note with history
             $currentTime = date('Y-m-d H:i:s');
             $username = $tokenData['username'];
-            $oldStatus = $computer['status'];
             
             $historyNote = "Von ***$oldStatus*** auf ***$newStatus*** geändert am $currentTime von $username";
             
@@ -129,7 +156,7 @@ try {
             // Update computer
             $updateStmt = $conn->prepare("
                 UPDATE computers 
-                SET status = :status, status_note = :status_note 
+                SET status = :status, status_note = :status_note, updated_at = NOW()
                 WHERE id = :id
             ");
             
@@ -139,4 +166,50 @@ try {
                 ':id' => $computerId
             ]);
 
+            // Log the change
+            logStatusChange($conn, $computerId, $oldStatus, $newStatus, $username, $statusNote);
+
             $updatedComputers[] = [
+                'id' => $computerId,
+                'name' => $computer['name'],
+                'old_status' => $oldStatus,
+                'new_status' => $newStatus
+            ];
+
+        } catch (PDOException $e) {
+            $errors[] = "Fehler bei Computer ID $computerId: " . $e->getMessage();
+        }
+    }
+
+    if (empty($updatedComputers) && !empty($errors)) {
+        $conn->rollBack();
+        sendResponse(false, null, "Keine Computer konnten aktualisiert werden: " . implode(", ", $errors), 400);
+    }
+
+    // Commit transaction
+    $conn->commit();
+
+    $message = count($updatedComputers) . " Computer erfolgreich aktualisiert";
+    if (!empty($errors)) {
+        $message .= " (Warnungen: " . implode(", ", $errors) . ")";
+    }
+
+    sendResponse(true, [
+        'updated_computers' => $updatedComputers,
+        'total_updated' => count($updatedComputers),
+        'errors' => $errors
+    ], $message);
+
+} catch (PDOException $e) {
+    if (isset($conn)) {
+        $conn->rollBack();
+    }
+    error_log("Database error in update_status: " . $e->getMessage());
+    sendResponse(false, null, "Datenbankfehler", 500);
+} catch (Exception $e) {
+    if (isset($conn)) {
+        $conn->rollBack();
+    }
+    error_log("General error in update_status: " . $e->getMessage());
+    sendResponse(false, null, "Serverfehler", 500);
+}
