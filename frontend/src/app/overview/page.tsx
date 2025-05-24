@@ -1,8 +1,10 @@
+// frontend/src/app/overview/page.tsx - Updated with Computer Details Modal
 "use client";
 
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useRouter } from "next/navigation";
+import { ComputerDetailsModal } from "../../components/ComputerDetailsModal";
 
 interface FE {
   id: number;
@@ -11,6 +13,8 @@ interface FE {
   status: string;
   status_note: string;
   installed_version: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 interface Toast {
@@ -60,6 +64,7 @@ export default function Overview() {
     isOpen: false,
     newVersion: ''
   });
+  const [selectedComputerForDetails, setSelectedComputerForDetails] = useState<FE | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: keyof FE; direction: "asc" | "desc" }>({
     key: "name",
     direction: "asc",
@@ -116,6 +121,10 @@ export default function Overview() {
     setTimeout(() => {
       router.push("/login");
     }, 1000);
+  };
+
+  const handleComputerNameClick = (computer: FE) => {
+    setSelectedComputerForDetails(computer);
   };
 
   const handleSelectAll = (checked: boolean) => {
@@ -342,6 +351,18 @@ export default function Overview() {
           <span className="text-sm text-gray-600">
             {selectedComputers.length} von {computers.length} ausgewählt
           </span>
+          
+          {/* Profile Button */}
+          <button
+            onClick={() => router.push('/profile')}
+            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition flex items-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+            Profil
+          </button>
+          
           <button
             onClick={handleLogout}
             className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
@@ -478,7 +499,14 @@ export default function Overview() {
                       className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                     />
                   </td>
-                  <td className="px-4 py-3 font-medium text-gray-900">{computer.name}</td>
+                  <td className="px-4 py-3">
+                    <button
+                      onClick={() => handleComputerNameClick(computer)}
+                      className="font-medium text-blue-600 hover:text-blue-800 hover:underline transition"
+                    >
+                      {computer.name}
+                    </button>
+                  </td>
                   <td className="px-4 py-3 text-gray-700">{computer.ip_address}</td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
@@ -503,6 +531,15 @@ export default function Overview() {
           </table>
         </div>
       </div>
+
+      {/* Computer Details Modal */}
+      {selectedComputerForDetails && (
+        <ComputerDetailsModal
+          computer={selectedComputerForDetails}
+          isOpen={!!selectedComputerForDetails}
+          onClose={() => setSelectedComputerForDetails(null)}
+        />
+      )}
 
       {/* Status Change Modal */}
       {statusModal.isOpen && (
