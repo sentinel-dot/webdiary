@@ -24,13 +24,21 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
-// Hilfsfunktion zum sicheren Dekodieren von Base64-Token
-const decodeToken = (token: string) => {
+// Hilfsfunktion zum sicheren Dekodieren von JWT-Token
+const decodeJWT = (token: string) => {
   try {
-    const decoded = atob(token);
+    const parts = token.split('.');
+    if (parts.length !== 3) {
+      console.error('Invalid JWT format');
+      return null;
+    }
+    
+    const payload = parts[1];
+    // URL-safe base64 decode
+    const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
     return JSON.parse(decoded);
   } catch (error) {
-    console.error('Error decoding token:', error);
+    console.error('Error decoding JWT token:', error);
     return null;
   }
 };
@@ -38,7 +46,7 @@ const decodeToken = (token: string) => {
 // Hilfsfunktion zum Validieren von Token
 const isTokenValid = (token: string): boolean => {
   try {
-    const tokenData = decodeToken(token);
+    const tokenData = decodeJWT(token);
     if (!tokenData || !tokenData.exp) {
       return false;
     }
@@ -86,7 +94,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     if (token && isTokenValid(token)) {
       try {
-        const tokenData = decodeToken(token);
+        const tokenData = decodeJWT(token);
         if (tokenData && tokenData.exp) {
           const timeUntilExpiry = (tokenData.exp * 1000) - Date.now();
           

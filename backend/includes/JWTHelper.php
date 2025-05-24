@@ -60,8 +60,8 @@ class JWTHelper {
                 return false;
             }
             
-            // Verify required fields
-            if (!isset($payload['id']) || !isset($payload['username']) || !isset($payload['role'])) {
+            // Verify required fields - check for both user_id and id for compatibility
+            if ((!isset($payload['user_id']) && !isset($payload['id'])) || !isset($payload['username']) || !isset($payload['role'])) {
                 error_log("JWT decode failed: Missing required fields in payload");
                 return false;
             }
@@ -93,6 +93,16 @@ class JWTHelper {
     public static function getTokenFromHeaders() {
         try {
             $headers = getallheaders();
+            if (!$headers) {
+                // Fallback für Nginx/andere Server
+                $headers = [];
+                foreach ($_SERVER as $key => $value) {
+                    if (substr($key, 0, 5) === 'HTTP_') {
+                        $headers[str_replace(' ', '-', ucwords(str_replace('_', ' ', strtolower(substr($key, 5)))))] = $value;
+                    }
+                }
+            }
+            
             $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
             
             if (empty($authHeader)) {

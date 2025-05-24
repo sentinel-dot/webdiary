@@ -9,6 +9,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit(0);
 }
 
+// Include JWT Helper
+require_once '../includes/JWTHelper.php';
+
 function sendResponse($success, $data = null, $message = "", $statusCode = 200) {
     http_response_code($statusCode);
     echo json_encode([
@@ -93,17 +96,17 @@ try {
     // Erfolgreiche Anmeldung - Reset attempts
     unset($_SESSION[$attemptKey]);
     
-    // JWT Token generieren (vereinfacht aber korrekt base64 enkodiert)
+    // JWT Token mit JWTHelper generieren
     $tokenPayload = [
         'user_id' => $user['id'],
+        'id' => $user['id'], // Beide für Kompatibilität
         'username' => $user['username'],
         'role' => $user['role'],
         'exp' => time() + (24 * 60 * 60), // 24 Stunden
         'iat' => time()
     ];
     
-    // Korrekte Base64-Kodierung des JSON-Strings
-    $token = base64_encode(json_encode($tokenPayload));
+    $token = JWTHelper::encode($tokenPayload);
     
     sendResponse(true, [
         'user' => [
@@ -111,7 +114,9 @@ try {
             'username' => $user['username'],
             'role' => $user['role']
         ],
-        'token' => $token
+        'token' => $token,
+        'expires_in' => 24 * 60 * 60,
+        'token_type' => 'Bearer'
     ], "Erfolgreich angemeldet");
     
 } catch (PDOException $e) {
