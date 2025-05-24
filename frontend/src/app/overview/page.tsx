@@ -104,6 +104,9 @@ export default function Overview() {
 
   const statusOptions = ['Testbereit', 'Reserviert', 'Ausser Betrieb', 'Installation/Wartung', 'AIS'];
 
+  const [showFunctionsDropdown, setShowFunctionsDropdown] = useState(false);
+  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+
   // Check authentication and redirect if needed
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -118,6 +121,20 @@ export default function Overview() {
       fetchComputers();
     }
   }, [isAuthenticated, loading]);
+
+  // Click-outside Handler
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (!target.closest('.relative')) {
+        setShowFunctionsDropdown(false);
+        setShowFilterDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const addToast = (message: string, type: 'success' | 'error' | 'info') => {
     const id = Date.now();
@@ -450,7 +467,7 @@ export default function Overview() {
 
         {/* Filters and Actions */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-6">
-          {/* Search and Filters */}
+          {/* Search and Quick Filters */}
           <div className="grid grid-cols-4 gap-4 mb-6">
             <div className="col-span-2">
               <label className="block text-sm font-medium text-slate-700 mb-2">Suche</label>
@@ -468,107 +485,207 @@ export default function Overview() {
               </div>
             </div>
             
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Status Filter</label>
-              <select
-                value={filters.status}
-                onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
-                className="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-              >
-                <option value="">Alle Status</option>
-                {statusOptions.map(status => (
-                  <option key={status} value={status}>{status}</option>
-                ))}
-              </select>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Version Filter</label>
-              <input
-                type="text"
-                placeholder="Version..."
-                value={filters.version}
-                onChange={(e) => setFilters(prev => ({ ...prev, version: e.target.value }))}
-                className="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-              />
+            <div className="col-span-2 flex items-end gap-3">
+              {/* Filter Dropdown Button */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowFilterDropdown(!showFilterDropdown)}
+                  className="px-6 py-2.5 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-all flex items-center gap-2 border border-slate-300"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.207A1 1 0 013 6.5V4z" />
+                  </svg>
+                  Filter
+                  {(filters.status || filters.version) && (
+                    <span className="ml-1 px-2 py-0.5 bg-blue-500 text-white text-xs rounded-full">
+                      {(filters.status ? 1 : 0) + (filters.version ? 1 : 0)}
+                    </span>
+                  )}
+                </button>
+                
+                {/* Filter Dropdown Menu */}
+                {showFilterDropdown && (
+                  <div className="absolute top-full left-0 mt-1 w-80 bg-white rounded-xl shadow-lg border border-slate-200 z-50">
+                    <div className="p-4 space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">Status Filter</label>
+                        <select
+                          value={filters.status}
+                          onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                          <option value="">Alle Status</option>
+                          {statusOptions.map(status => (
+                            <option key={status} value={status}>{status}</option>
+                          ))}
+                        </select>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">Version Filter</label>
+                        <input
+                          type="text"
+                          placeholder="Version eingeben..."
+                          value={filters.version}
+                          onChange={(e) => setFilters(prev => ({ ...prev, version: e.target.value }))}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                      
+                      <div className="flex gap-2 pt-2 border-t border-slate-200">
+                        <button
+                          onClick={() => {
+                            setFilters({ search: filters.search, status: '', version: '' });
+                            setShowFilterDropdown(false);
+                          }}
+                          className="flex-1 px-3 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition text-sm"
+                        >
+                          Filter zurücksetzen
+                        </button>
+                        <button
+                          onClick={() => setShowFilterDropdown(false)}
+                          className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
+                        >
+                          Anwenden
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Clear Filters Button */}
+              {(filters.status || filters.version) && (
+                <button
+                  onClick={() => setFilters(prev => ({ ...prev, status: '', version: '' }))}
+                  className="px-4 py-2.5 text-slate-500 hover:text-slate-700 transition-colors flex items-center gap-1"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  Filter löschen
+                </button>
+              )}
             </div>
           </div>
 
           {/* Action Buttons */}
           <div className="flex justify-between items-center">
             <div className="flex gap-3">
-              {/* TEST Actions */}
+              {/* Funktionen Dropdown */}
               <div className="relative">
                 <button
-                  onClick={() => setStatusModal({...statusModal, isOpen: true})}
-                  disabled={!hasRole('privileged-user') || selectedComputers.length === 0}
+                  onClick={() => setShowFunctionsDropdown(!showFunctionsDropdown)}
+                  disabled={selectedComputers.length === 0}
                   className={`px-6 py-3 rounded-xl font-semibold transition-all flex items-center gap-2 ${
-                    hasRole('privileged-user') && selectedComputers.length > 0
-                      ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg hover:shadow-xl transform hover:scale-105'
+                    selectedComputers.length > 0
+                      ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg hover:shadow-xl'
                       : 'bg-slate-200 text-slate-400 cursor-not-allowed'
                   }`}
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
                   </svg>
-                  Status ändern
+                  Funktionen
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
                 </button>
+                
+                {/* Functions Dropdown Menu */}
+                {showFunctionsDropdown && selectedComputers.length > 0 && (
+                  <div className="absolute top-full left-0 mt-1 w-64 bg-white rounded-xl shadow-lg border border-slate-200 z-50">
+                    <div className="py-2">
+                      {/* Status ändern */}
+                      {hasRole('privileged-user') && (
+                        <button
+                          onClick={() => {
+                            setStatusModal({...statusModal, isOpen: true});
+                            setShowFunctionsDropdown(false);
+                          }}
+                          className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors flex items-center gap-3"
+                        >
+                          <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                            <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          </div>
+                          <div>
+                            <div className="font-medium text-slate-900">Status ändern</div>
+                            <div className="text-sm text-slate-500">Computer-Status aktualisieren</div>
+                          </div>
+                        </button>
+                      )}
+
+                      {/* Version ändern */}
+                      {hasRole('admin-user') && (
+                        <button
+                          onClick={() => {
+                            setVersionModal({...versionModal, isOpen: true});
+                            setShowFunctionsDropdown(false);
+                          }}
+                          className="w-full text-left px-4 py-3 hover:bg-emerald-50 transition-colors flex items-center gap-3"
+                        >
+                          <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
+                            <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                            </svg>
+                          </div>
+                          <div>
+                            <div className="font-medium text-slate-900">Version ändern</div>
+                            <div className="text-sm text-slate-500">Software-Version aktualisieren</div>
+                          </div>
+                        </button>
+                      )}
+
+                      {/* System Reboot */}
+                      {hasRole('privileged-user') && (
+                        <button
+                          onClick={() => {
+                            setShowFunctionsDropdown(false);
+                            handleSystemReboot();
+                          }}
+                          className="w-full text-left px-4 py-3 hover:bg-amber-50 transition-colors flex items-center gap-3"
+                        >
+                          <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center">
+                            <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                          </div>
+                          <div>
+                            <div className="font-medium text-slate-900">System Reboot</div>
+                            <div className="text-sm text-slate-500">Computer neu starten</div>
+                          </div>
+                        </button>
+                      )}
+
+                      {/* Keine Berechtigung Hinweis */}
+                      {!hasRole('privileged-user') && (
+                        <div className="px-4 py-3 text-sm text-slate-500 italic">
+                          Keine Funktionen verfügbar für Ihre Rolle
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* INFRA Actions */}
-              <div className="relative">
-                <button
-                  onClick={() => setVersionModal({...versionModal, isOpen: true})}
-                  disabled={!hasRole('admin-user') || selectedComputers.length === 0}
-                  className={`px-6 py-3 rounded-xl font-semibold transition-all flex items-center gap-2 ${
-                    hasRole('admin-user') && selectedComputers.length > 0
-                      ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-lg hover:shadow-xl transform hover:scale-105'
-                      : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                  }`}
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                  </svg>
-                  Version ändern
-                </button>
-              </div>
-
-              {/* SYSTEM Actions */}
-              <div className="relative">
-                <button
-                  onClick={handleSystemReboot}
-                  disabled={!hasRole('privileged-user') || selectedComputers.length === 0}
-                  className={`px-6 py-3 rounded-xl font-semibold transition-all flex items-center gap-2 ${
-                    hasRole('privileged-user') && selectedComputers.length > 0
-                      ? 'bg-amber-600 text-white hover:bg-amber-700 shadow-lg hover:shadow-xl transform hover:scale-105'
-                      : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                  }`}
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  System Reboot
-                </button>
-              </div>
+              {/* Refresh Button */}
+              <button
+                onClick={fetchComputers}
+                className="px-4 py-3 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-all flex items-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Aktualisieren
+              </button>
             </div>
 
             <div className="flex items-center gap-4">
               <span className="text-sm text-slate-600">
                 {selectedComputers.length} von {paginatedComputers.length} ausgewählt
               </span>
-              
-              <div className="flex items-center gap-2">
-                <label className="text-sm text-slate-600">Einträge pro Seite:</label>
-                <select
-                  value={itemsPerPage}
-                  onChange={(e) => setItemsPerPage(Number(e.target.value))}
-                  className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value={25}>25</option>
-                  <option value={50}>50</option>
-                  <option value={100}>100</option>
-                </select>
-              </div>
             </div>
           </div>
         </div>
