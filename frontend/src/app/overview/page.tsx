@@ -1,7 +1,7 @@
-// frontend/src/app/overview/page.tsx - Updated with Computer Details Modal
+// frontend/src/app/overview/page.tsx - Modern Desktop Version - Complete
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useRouter } from "next/navigation";
 import { ComputerDetailsModal } from "../../components/ComputerDetailsModal";
@@ -34,14 +34,39 @@ interface VersionChangeModal {
   newVersion: string;
 }
 
+interface FilterState {
+  search: string;
+  status: string;
+  version: string;
+}
+
 const Toast: React.FC<{ toast: Toast; onRemove: (id: number) => void }> = ({ toast, onRemove }) => {
-  const bgColor = toast.type === 'success' ? 'bg-green-500' : toast.type === 'error' ? 'bg-red-500' : 'bg-blue-500';
+  const bgColor = toast.type === 'success' ? 'bg-emerald-500' : toast.type === 'error' ? 'bg-red-500' : 'bg-blue-500';
   
   return (
-    <div className={`${bgColor} text-white px-4 py-2 rounded-lg shadow-lg mb-2 animate-slide-in`}>
+    <div className={`${bgColor} text-white px-6 py-4 rounded-xl shadow-lg mb-3 animate-slide-in backdrop-blur-sm`}>
       <div className="flex justify-between items-center">
-        <span>{toast.message}</span>
-        <button onClick={() => onRemove(toast.id)} className="ml-2 text-white hover:text-gray-200">×</button>
+        <div className="flex items-center gap-3">
+          {toast.type === 'success' && (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          )}
+          {toast.type === 'error' && (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          )}
+          <span className="font-medium">{toast.message}</span>
+        </div>
+        <button
+          onClick={() => onRemove(toast.id)}
+          className="ml-4 text-white/80 hover:text-white transition-colors"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
       </div>
     </div>
   );
@@ -69,22 +94,27 @@ export default function Overview() {
     key: "name",
     direction: "asc",
   });
+  const [filters, setFilters] = useState<FilterState>({
+    search: '',
+    status: '',
+    version: ''
+  });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
 
   const statusOptions = ['Testbereit', 'Reserviert', 'Ausser Betrieb', 'Installation/Wartung', 'AIS'];
 
-  // Check authentication and redirect if needed - BUT ONLY AFTER loading is complete
+  // Check authentication and redirect if needed
   useEffect(() => {
     if (!loading && !isAuthenticated) {
-      console.log("Not authenticated, redirecting to login");
       router.push("/login");
       return;
     }
   }, [isAuthenticated, loading, router]);
 
-  // Fetch computers only when authenticated and loading is complete
+  // Fetch computers only when authenticated
   useEffect(() => {
     if (!loading && isAuthenticated) {
-      console.log("User authenticated, fetching computers");
       fetchComputers();
     }
   }, [isAuthenticated, loading]);
@@ -117,19 +147,92 @@ export default function Overview() {
   const handleLogout = () => {
     addToast("Erfolgreich abgemeldet", "success");
     logout();
-    // Kurze Verzögerung für die Toast-Nachricht, dann zur Login-Seite
     setTimeout(() => {
       router.push("/login");
     }, 1000);
   };
 
-  const handleComputerNameClick = (computer: FE) => {
-    setSelectedComputerForDetails(computer);
+  // Filtered and sorted data
+  const filteredAndSortedComputers = useMemo(() => {
+    let filtered = computers.filter(computer => {
+      const matchesSearch = !filters.search || 
+        computer.name.toLowerCase().includes(filters.search.toLowerCase()) ||
+        computer.ip_address.includes(filters.search) ||
+        computer.installed_version.toLowerCase().includes(filters.search.toLowerCase());
+      
+      const matchesStatus = !filters.status || computer.status === filters.status;
+      const matchesVersion = !filters.version || computer.installed_version.includes(filters.version);
+      
+      return matchesSearch && matchesStatus && matchesVersion;
+    });
+
+    // Sort data
+    filtered.sort((a, b) => {
+      if (sortConfig.key === "ip_address") {
+        const aValue = a[sortConfig.key].split(".").map(Number);
+        const bValue = b[sortConfig.key].split(".").map(Number);
+        const result = compareIP(aValue, bValue);
+        return sortConfig.direction === "asc" ? result : -result;
+      } else {
+        const aValue = String(a[sortConfig.key]).toLowerCase();
+        const bValue = String(b[sortConfig.key]).toLowerCase();
+        const result = aValue.localeCompare(bValue);
+        return sortConfig.direction === "asc" ? result : -result;
+      }
+    });
+
+    return filtered;
+  }, [computers, filters, sortConfig]);
+
+  // Pagination
+  const totalPages = Math.ceil(filteredAndSortedComputers.length / itemsPerPage);
+  const paginatedComputers = filteredAndSortedComputers.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters]);
+
+  const compareIP = (a: number[], b: number[]) => {
+    for (let i = 0; i < 4; i++) {
+      if (a[i] !== b[i]) {
+        return a[i] - b[i];
+      }
+    }
+    return 0;
+  };
+
+  const sortData = (key: keyof FE) => {
+    let direction: "asc" | "desc" = "asc";
+    if (sortConfig.key === key && sortConfig.direction === "asc") {
+      direction = "desc";
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const getStatusConfig = (status: string) => {
+    switch (status) {
+      case 'Testbereit':
+        return { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', icon: '✓' };
+      case 'Reserviert':
+        return { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', icon: '🔒' };
+      case 'Installation/Wartung':
+        return { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', icon: '🔧' };
+      case 'AIS':
+        return { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', icon: '⚡' };
+      case 'Ausser Betrieb':
+        return { bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-gray-200', icon: '⏸️' };
+      default:
+        return { bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-gray-200', icon: '?' };
+    }
   };
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedComputers(computers.map(computer => computer.id));
+      setSelectedComputers(paginatedComputers.map(computer => computer.id));
     } else {
       setSelectedComputers([]);
     }
@@ -143,9 +246,10 @@ export default function Overview() {
     }
   };
 
+  // Action handlers
   const handleStatusChange = async () => {
     if (selectedComputers.length === 0) {
-      addToast("Bitte mindestens 1 FE auswählen", "error");
+      addToast("Bitte mindestens 1 Computer auswählen", "error");
       return;
     }
     if (!statusModal.newStatus) {
@@ -158,12 +262,9 @@ export default function Overview() {
     }
 
     try {
-      // API-Aufruf zum Status-Update
       const response = await fetch('http://localhost:8080/api/update_status.php', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           computer_ids: selectedComputers,
           status: statusModal.newStatus,
@@ -176,7 +277,7 @@ export default function Overview() {
       addToast(`Status von ${selectedComputers.length} Computer(n) erfolgreich geändert`, "success");
       setStatusModal({ isOpen: false, newStatus: '', statusNote: '' });
       setSelectedComputers([]);
-      fetchComputers(); // Refresh data
+      fetchComputers();
     } catch (error) {
       addToast("Fehler beim Ändern des Status", "error");
     }
@@ -184,7 +285,7 @@ export default function Overview() {
 
   const handleVersionChange = async () => {
     if (selectedComputers.length === 0) {
-      addToast("Bitte mindestens 1 FE auswählen", "error");
+      addToast("Bitte mindestens 1 Computer auswählen", "error");
       return;
     }
     if (!versionModal.newVersion.trim()) {
@@ -193,12 +294,9 @@ export default function Overview() {
     }
 
     try {
-      // API-Aufruf zum Version-Update
       const response = await fetch('http://localhost:8080/api/update_version.php', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           computer_ids: selectedComputers,
           version: versionModal.newVersion
@@ -210,7 +308,7 @@ export default function Overview() {
       addToast(`Version von ${selectedComputers.length} Computer(n) erfolgreich geändert`, "success");
       setVersionModal({ isOpen: false, newVersion: '' });
       setSelectedComputers([]);
-      fetchComputers(); // Refresh data
+      fetchComputers();
     } catch (error) {
       addToast("Fehler beim Ändern der Version", "error");
     }
@@ -218,21 +316,16 @@ export default function Overview() {
 
   const handleSystemReboot = async () => {
     if (selectedComputers.length === 0) {
-      addToast("Bitte mindestens 1 FE auswählen", "error");
+      addToast("Bitte mindestens 1 Computer auswählen", "error");
       return;
     }
 
     if (confirm(`Möchten Sie wirklich ${selectedComputers.length} Computer(n) neu starten?`)) {
       try {
-        // API-Aufruf zum Reboot
         const response = await fetch('http://localhost:8080/api/system_reboot.php', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            computer_ids: selectedComputers
-          })
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ computer_ids: selectedComputers })
         });
 
         if (!response.ok) throw new Error('Fehler beim Neustart');
@@ -245,57 +338,24 @@ export default function Overview() {
     }
   };
 
-  const sortData = (key: keyof FE) => {
-    let direction: "asc" | "desc" = "asc";
-    if (sortConfig.key === key && sortConfig.direction === "asc") {
-      direction = "desc";
-    }
-
-    setSortConfig({ key, direction });
-
-    const sortedData = [...computers].sort((a, b) => {
-      if (key === "ip_address") {
-        const aValue = a[key].split(".").map(Number);
-        const bValue = b[key].split(".").map(Number);
-        return direction === "asc" ? compareIP(aValue, bValue) : compareIP(bValue, aValue);
-      } else {
-        const aValue = String(a[key]).toLowerCase();
-        const bValue = String(b[key]).toLowerCase();
-        return direction === "asc" ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
-      }
-    });
-
-    setComputers(sortedData);
-  };
-
-  const compareIP = (a: number[], b: number[]) => {
-    for (let i = 0; i < 4; i++) {
-      if (a[i] !== b[i]) {
-        return a[i] - b[i];
-      }
-    }
-    return 0;
-  };
-
-  // Show loading spinner while auth is loading
+  // Loading states
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Authentifizierung wird überprüft...</p>
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-600 border-t-transparent mx-auto mb-4"></div>
+          <p className="text-slate-600 text-lg">Authentifizierung wird überprüft...</p>
         </div>
       </div>
     );
   }
 
-  // Only show content if authenticated (loading is complete and user is authenticated)
   if (!isAuthenticated) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Weiterleitung zur Anmeldung...</p>
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-600 border-t-transparent mx-auto mb-4"></div>
+          <p className="text-slate-600 text-lg">Weiterleitung zur Anmeldung...</p>
         </div>
       </div>
     );
@@ -303,10 +363,10 @@ export default function Overview() {
 
   if (dataLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Daten werden geladen...</p>
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-600 border-t-transparent mx-auto mb-4"></div>
+          <p className="text-slate-600 text-lg">Testrechner werden geladen...</p>
         </div>
       </div>
     );
@@ -314,13 +374,14 @@ export default function Overview() {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-red-600 mb-4">Fehler</h2>
-          <p className="text-gray-600">{error}</p>
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 to-red-50">
+        <div className="text-center bg-white p-8 rounded-2xl shadow-xl">
+          <div className="text-red-500 text-6xl mb-4">⚠️</div>
+          <h2 className="text-2xl font-bold text-red-600 mb-4">Fehler beim Laden</h2>
+          <p className="text-slate-600 mb-6">{error}</p>
           <button 
             onClick={fetchComputers} 
-            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
             Erneut versuchen
           </button>
@@ -330,205 +391,393 @@ export default function Overview() {
   }
 
   return (
-    <main className="p-4 min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       {/* Toast Container */}
-      <div className="fixed top-4 right-4 z-50">
+      <div className="fixed top-6 right-6 z-50 max-w-md">
         {toasts.map(toast => (
           <Toast key={toast.id} toast={toast} onRemove={removeToast} />
         ))}
       </div>
 
-      {/* Header */}
-      <div className="flex justify-between items-center mb-6 bg-white p-4 rounded-lg shadow">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Testrechner Übersicht</h1>
-          <p className="text-gray-600">
-            Angemeldet als: <span className="font-medium">{user?.username}</span> ({user?.role})
-          </p>
-        </div>
-        
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-gray-600">
-            {selectedComputers.length} von {computers.length} ausgewählt
-          </span>
-          
-          {/* Profile Button */}
-          <button
-            onClick={() => router.push('/profile')}
-            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition flex items-center gap-2"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-            </svg>
-            Profil
-          </button>
-          
-          <button
-            onClick={handleLogout}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
-          >
-            Abmelden
-          </button>
-        </div>
-      </div>
-
-      {/* Action Bar */}
-      <div className="flex justify-between items-center mb-4 bg-white p-4 rounded-lg shadow">
-        <div className="flex gap-4">
-          {/* TEST Dropdown */}
-          <div className="relative group">
-            <button className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow hover:bg-blue-700 transition">
-              TEST
-            </button>
-            <div className="absolute left-0 mt-2 w-48 bg-white border rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-10">
-              <button
-                onClick={() => setStatusModal({...statusModal, isOpen: true})}
-                disabled={!hasRole('privileged-user')}
-                className={`block w-full text-left px-4 py-2 transition ${
-                  hasRole('privileged-user') 
-                    ? 'text-gray-800 hover:bg-gray-100' 
-                    : 'text-gray-400 cursor-not-allowed'
-                }`}
-              >
-                Status ändern
-              </button>
+      <div className="p-6">
+        {/* Header */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900 mb-2">Testrechner Übersicht</h1>
+              <div className="flex items-center gap-4 text-slate-600">
+                <span className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
+                  Angemeldet als: <span className="font-semibold text-slate-900">{user?.username}</span>
+                </span>
+                <span className="text-slate-400">•</span>
+                <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
+                  {user?.role}
+                </span>
+              </div>
             </div>
-          </div>
-
-          {/* INFRA Dropdown */}
-          <div className="relative group">
-            <button className="px-4 py-2 bg-green-600 text-white font-semibold rounded-lg shadow hover:bg-green-700 transition">
-              INFRA
-            </button>
-            <div className="absolute left-0 mt-2 w-48 bg-white border rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-10">
+            
+            <div className="flex items-center gap-3">
+              <div className="text-right">
+                <div className="text-2xl font-bold text-slate-900">{filteredAndSortedComputers.length}</div>
+                <div className="text-sm text-slate-500">Computer gefunden</div>
+              </div>
+              
+              <div className="h-10 w-px bg-slate-200"></div>
+              
               <button
-                onClick={() => setVersionModal({...versionModal, isOpen: true})}
-                disabled={!hasRole('admin-user')}
-                className={`block w-full text-left px-4 py-2 transition ${
-                  hasRole('admin-user') 
-                    ? 'text-gray-800 hover:bg-gray-100' 
-                    : 'text-gray-400 cursor-not-allowed'
-                }`}
+                onClick={() => router.push('/profile')}
+                className="px-4 py-2 bg-slate-600 text-white rounded-xl hover:bg-slate-700 transition-colors flex items-center gap-2"
               >
-                Installierte Version ändern
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                Profil
               </button>
+              
               <button
-                disabled={!hasRole('admin-user')}
-                className={`block w-full text-left px-4 py-2 transition ${
-                  hasRole('admin-user') 
-                    ? 'text-gray-800 hover:bg-gray-100' 
-                    : 'text-gray-400 cursor-not-allowed'
-                }`}
+                onClick={handleLogout}
+                className="px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors flex items-center gap-2"
               >
-                Rechnertab importieren
-              </button>
-            </div>
-          </div>
-
-          {/* SYSTEM Dropdown */}
-          <div className="relative group">
-            <button className="px-4 py-2 bg-orange-600 text-white font-semibold rounded-lg shadow hover:bg-orange-700 transition">
-              SYSTEM
-            </button>
-            <div className="absolute left-0 mt-2 w-48 bg-white border rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-10">
-              <button
-                onClick={handleSystemReboot}
-                disabled={!hasRole('privileged-user')}
-                className={`block w-full text-left px-4 py-2 transition ${
-                  hasRole('privileged-user') 
-                    ? 'text-gray-800 hover:bg-gray-100' 
-                    : 'text-gray-400 cursor-not-allowed'
-                }`}
-              >
-                Systemreboot
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                Abmelden
               </button>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left">
-                  <input
-                    type="checkbox"
-                    checked={selectedComputers.length === computers.length && computers.length > 0}
-                    onChange={(e) => handleSelectAll(e.target.checked)}
-                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                  />
-                </th>
-                <th 
-                  className="px-4 py-3 text-left font-medium text-gray-900 cursor-pointer hover:bg-gray-100"
-                  onClick={() => sortData("name")}
-                >
-                  Name {sortConfig.key === 'name' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                </th>
-                <th 
-                  className="px-4 py-3 text-left font-medium text-gray-900 cursor-pointer hover:bg-gray-100"
-                  onClick={() => sortData("ip_address")}
-                >
-                  IP-Adresse {sortConfig.key === 'ip_address' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                </th>
-                <th 
-                  className="px-4 py-3 text-left font-medium text-gray-900 cursor-pointer hover:bg-gray-100"
-                  onClick={() => sortData("status")}
-                >
-                  Status {sortConfig.key === 'status' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-gray-900">Bemerkung</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-900">Version</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {computers.map((computer) => (
-                <tr 
-                  key={computer.id} 
-                  className={`hover:bg-gray-50 transition ${
-                    selectedComputers.includes(computer.id) ? 'bg-blue-50' : ''
+        {/* Filters and Actions */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-6">
+          {/* Search and Filters */}
+          <div className="grid grid-cols-4 gap-4 mb-6">
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-slate-700 mb-2">Suche</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Name, IP-Adresse oder Version suchen..."
+                  value={filters.search}
+                  onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
+                  className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                />
+                <svg className="w-5 h-5 text-slate-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Status Filter</label>
+              <select
+                value={filters.status}
+                onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
+                className="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              >
+                <option value="">Alle Status</option>
+                {statusOptions.map(status => (
+                  <option key={status} value={status}>{status}</option>
+                ))}
+              </select>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Version Filter</label>
+              <input
+                type="text"
+                placeholder="Version..."
+                value={filters.version}
+                onChange={(e) => setFilters(prev => ({ ...prev, version: e.target.value }))}
+                className="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              />
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex justify-between items-center">
+            <div className="flex gap-3">
+              {/* TEST Actions */}
+              <div className="relative">
+                <button
+                  onClick={() => setStatusModal({...statusModal, isOpen: true})}
+                  disabled={!hasRole('privileged-user') || selectedComputers.length === 0}
+                  className={`px-6 py-3 rounded-xl font-semibold transition-all flex items-center gap-2 ${
+                    hasRole('privileged-user') && selectedComputers.length > 0
+                      ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg hover:shadow-xl transform hover:scale-105'
+                      : 'bg-slate-200 text-slate-400 cursor-not-allowed'
                   }`}
                 >
-                  <td className="px-4 py-3">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Status ändern
+                </button>
+              </div>
+
+              {/* INFRA Actions */}
+              <div className="relative">
+                <button
+                  onClick={() => setVersionModal({...versionModal, isOpen: true})}
+                  disabled={!hasRole('admin-user') || selectedComputers.length === 0}
+                  className={`px-6 py-3 rounded-xl font-semibold transition-all flex items-center gap-2 ${
+                    hasRole('admin-user') && selectedComputers.length > 0
+                      ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-lg hover:shadow-xl transform hover:scale-105'
+                      : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                  }`}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                  </svg>
+                  Version ändern
+                </button>
+              </div>
+
+              {/* SYSTEM Actions */}
+              <div className="relative">
+                <button
+                  onClick={handleSystemReboot}
+                  disabled={!hasRole('privileged-user') || selectedComputers.length === 0}
+                  className={`px-6 py-3 rounded-xl font-semibold transition-all flex items-center gap-2 ${
+                    hasRole('privileged-user') && selectedComputers.length > 0
+                      ? 'bg-amber-600 text-white hover:bg-amber-700 shadow-lg hover:shadow-xl transform hover:scale-105'
+                      : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                  }`}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  System Reboot
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-slate-600">
+                {selectedComputers.length} von {paginatedComputers.length} ausgewählt
+              </span>
+              
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-slate-600">Einträge pro Seite:</label>
+                <select
+                  value={itemsPerPage}
+                  onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                  className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Computer Table */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  <th className="px-6 py-4 text-left">
                     <input
                       type="checkbox"
-                      checked={selectedComputers.includes(computer.id)}
-                      onChange={(e) => handleSelectComputer(computer.id, e.target.checked)}
-                      className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                      checked={selectedComputers.length === paginatedComputers.length && paginatedComputers.length > 0}
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                      className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 focus:ring-2"
                     />
-                  </td>
-                  <td className="px-4 py-3">
-                    <button
-                      onClick={() => handleComputerNameClick(computer)}
-                      className="font-medium text-blue-600 hover:text-blue-800 hover:underline transition"
-                    >
-                      {computer.name}
-                    </button>
-                  </td>
-                  <td className="px-4 py-3 text-gray-700">{computer.ip_address}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      computer.status === "Testbereit"
-                        ? "bg-green-100 text-green-800"
-                        : computer.status === "Reserviert"
-                        ? "bg-red-100 text-red-800"
-                        : computer.status === "Installation/Wartung"
-                        ? "bg-blue-100 text-blue-800"
-                        : computer.status === "AIS"
-                        ? "bg-orange-100 text-orange-800"
-                        : "bg-gray-100 text-gray-800"
-                    }`}>
-                      {computer.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-gray-700 max-w-xs truncate">{computer.status_note}</td>
-                  <td className="px-4 py-3 text-gray-700">{computer.installed_version}</td>
+                  </th>
+                  <th 
+                    className="px-6 py-4 text-left font-semibold text-slate-900 cursor-pointer hover:bg-slate-100 transition-colors select-none"
+                    onClick={() => sortData("name")}
+                  >
+                    <div className="flex items-center gap-2">
+                      Name
+                      {sortConfig.key === 'name' && (
+                        <span className="text-blue-600">
+                          {sortConfig.direction === 'asc' ? '↑' : '↓'}
+                        </span>
+                      )}
+                    </div>
+                  </th>
+                  <th 
+                    className="px-6 py-4 text-left font-semibold text-slate-900 cursor-pointer hover:bg-slate-100 transition-colors select-none"
+                    onClick={() => sortData("ip_address")}
+                  >
+                    <div className="flex items-center gap-2">
+                      IP-Adresse
+                      {sortConfig.key === 'ip_address' && (
+                        <span className="text-blue-600">
+                          {sortConfig.direction === 'asc' ? '↑' : '↓'}
+                        </span>
+                      )}
+                    </div>
+                  </th>
+                  <th 
+                    className="px-6 py-4 text-left font-semibold text-slate-900 cursor-pointer hover:bg-slate-100 transition-colors select-none"
+                    onClick={() => sortData("status")}
+                  >
+                    <div className="flex items-center gap-2">
+                      Status
+                      {sortConfig.key === 'status' && (
+                        <span className="text-blue-600">
+                          {sortConfig.direction === 'asc' ? '↑' : '↓'}
+                        </span>
+                      )}
+                    </div>
+                  </th>
+                  <th className="px-6 py-4 text-left font-semibold text-slate-900">Bemerkung</th>
+                  <th className="px-6 py-4 text-left font-semibold text-slate-900">Version</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {paginatedComputers.map((computer) => {
+                  const statusConfig = getStatusConfig(computer.status);
+                  return (
+                    <tr 
+                      key={computer.id} 
+                      className={`hover:bg-slate-50 transition-all duration-200 ${
+                        selectedComputers.includes(computer.id) ? 'bg-blue-50 ring-2 ring-blue-200' : ''
+                      }`}
+                    >
+                      <td className="px-6 py-4">
+                        <input
+                          type="checkbox"
+                          checked={selectedComputers.includes(computer.id)}
+                          onChange={(e) => handleSelectComputer(computer.id, e.target.checked)}
+                          className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 focus:ring-2"
+                        />
+                      </td>
+                      <td className="px-6 py-4">
+                        <button
+                          onClick={() => setSelectedComputerForDetails(computer)}
+                          className="font-semibold text-blue-600 hover:text-blue-800 hover:underline transition-colors"
+                        >
+                          {computer.name}
+                        </button>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="font-mono text-slate-700 bg-slate-100 px-2 py-1 rounded-md text-sm">
+                          {computer.ip_address}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border ${statusConfig.bg} ${statusConfig.text} ${statusConfig.border}`}>
+                          <span className="text-sm">{statusConfig.icon}</span>
+                          <span className="font-medium text-sm">{computer.status}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="max-w-xs">
+                          {computer.status_note ? (
+                            <p className="text-slate-700 text-sm truncate" title={computer.status_note}>
+                              {computer.status_note}
+                            </p>
+                          ) : (
+                            <span className="text-slate-400 text-sm italic">Keine Bemerkung</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="font-mono text-slate-700 bg-slate-100 px-2 py-1 rounded-md text-sm">
+                          {computer.installed_version}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="bg-slate-50 px-6 py-4 border-t border-slate-200">
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-slate-600">
+                  Zeige {((currentPage - 1) * itemsPerPage) + 1} bis {Math.min(currentPage * itemsPerPage, filteredAndSortedComputers.length)} von {filteredAndSortedComputers.length} Einträgen
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                    className={`px-3 py-2 rounded-lg font-medium transition-colors ${
+                      currentPage === 1
+                        ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                        : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-300'
+                    }`}
+                  >
+                    Vorherige
+                  </button>
+                  
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNumber;
+                      if (totalPages <= 5) {
+                        pageNumber = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNumber = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNumber = totalPages - 4 + i;
+                      } else {
+                        pageNumber = currentPage - 2 + i;
+                      }
+                      
+                      return (
+                        <button
+                          key={pageNumber}
+                          onClick={() => setCurrentPage(pageNumber)}
+                          className={`px-3 py-2 rounded-lg font-medium transition-colors ${
+                            currentPage === pageNumber
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-300'
+                          }`}
+                        >
+                          {pageNumber}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages}
+                    className={`px-3 py-2 rounded-lg font-medium transition-colors ${
+                      currentPage === totalPages
+                        ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                        : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-300'
+                    }`}
+                  >
+                    Nächste
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Status Summary Cards */}
+        <div className="grid grid-cols-5 gap-4 mt-6">
+          {statusOptions.map(status => {
+            const count = computers.filter(c => c.status === status).length;
+            const config = getStatusConfig(status);
+            return (
+              <div 
+                key={status}
+                className={`${config.bg} ${config.border} border rounded-xl p-4 cursor-pointer hover:shadow-md transition-all`}
+                onClick={() => setFilters(prev => ({ ...prev, status: prev.status === status ? '' : status }))}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className={`text-2xl font-bold ${config.text}`}>{count}</div>
+                    <div className={`text-sm ${config.text} opacity-80`}>{status}</div>
+                  </div>
+                  <div className="text-2xl">{config.icon}</div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -543,18 +792,26 @@ export default function Overview() {
 
       {/* Status Change Modal */}
       {statusModal.isOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-96 max-w-90vw">
-            <h3 className="text-lg font-semibold mb-4">Status ändern</h3>
-            <div className="space-y-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-8 w-96 max-w-90vw shadow-2xl">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-bold text-slate-900">Status ändern</h3>
+            </div>
+            
+            <div className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-semibold text-slate-700 mb-3">
                   Neuer Status
                 </label>
                 <select
                   value={statusModal.newStatus}
                   onChange={(e) => setStatusModal({...statusModal, newStatus: e.target.value})}
-                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 >
                   <option value="">Status auswählen...</option>
                   {statusOptions.map(status => (
@@ -564,29 +821,29 @@ export default function Overview() {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-semibold text-slate-700 mb-3">
                   Bemerkung {statusModal.newStatus === 'Reserviert' && <span className="text-red-500">*</span>}
                 </label>
                 <textarea
                   value={statusModal.statusNote}
                   onChange={(e) => setStatusModal({...statusModal, statusNote: e.target.value})}
                   placeholder={statusModal.newStatus === 'Reserviert' ? 'Für wen reserviert?' : 'Optionale Bemerkung...'}
-                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none"
                   rows={3}
                 />
               </div>
             </div>
             
-            <div className="flex gap-3 mt-6">
+            <div className="flex gap-3 mt-8">
               <button
                 onClick={handleStatusChange}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-semibold transition-colors"
               >
-                Ändern
+                Status ändern
               </button>
               <button
                 onClick={() => setStatusModal({isOpen: false, newStatus: '', statusNote: ''})}
-                className="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400"
+                className="flex-1 px-6 py-3 bg-slate-200 text-slate-700 rounded-xl hover:bg-slate-300 font-semibold transition-colors"
               >
                 Abbrechen
               </button>
@@ -597,12 +854,20 @@ export default function Overview() {
 
       {/* Version Change Modal */}
       {versionModal.isOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-96 max-w-90vw">
-            <h3 className="text-lg font-semibold mb-4">Version ändern</h3>
-            <div className="space-y-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-8 w-96 max-w-90vw shadow-2xl">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
+                <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-bold text-slate-900">Version ändern</h3>
+            </div>
+            
+            <div className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-semibold text-slate-700 mb-3">
                   Neue Version
                 </label>
                 <input
@@ -610,21 +875,21 @@ export default function Overview() {
                   value={versionModal.newVersion}
                   onChange={(e) => setVersionModal({...versionModal, newVersion: e.target.value})}
                   placeholder="z.B. X979-1.0878910"
-                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all font-mono"
                 />
               </div>
             </div>
             
-            <div className="flex gap-3 mt-6">
+            <div className="flex gap-3 mt-8">
               <button
                 onClick={handleVersionChange}
-                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                className="flex-1 px-6 py-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 font-semibold transition-colors"
               >
-                Ändern
+                Version ändern
               </button>
               <button
                 onClick={() => setVersionModal({isOpen: false, newVersion: ''})}
-                className="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400"
+                className="flex-1 px-6 py-3 bg-slate-200 text-slate-700 rounded-xl hover:bg-slate-300 font-semibold transition-colors"
               >
                 Abbrechen
               </button>
@@ -648,6 +913,6 @@ export default function Overview() {
           animation: slide-in 0.3s ease-out;
         }
       `}</style>
-    </main>
+    </div>
   );
 }
