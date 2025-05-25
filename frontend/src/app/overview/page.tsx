@@ -12,10 +12,39 @@ interface FE {
   ip_address: string;
   status: string;
   status_note: string;
+  Status_Datum?: string;
   installed_version: string;
-  created_at?: string;
-  updated_at?: string;
+  Inst_Zielversion?: string;
+  OZ?: string;
+  Monitor_LoggedOn_User?: string;
+  Monitor_Datum?: string;
+  Monitor_ZORA_Checkpoint?: string;
+  Build_Key?: string;
+  ZORA_Version?: string;
+  FE_ZORA_Version?: string;
+  Z_Umgebung_Soll?: string;
+  Z_Umgebung_Inventar?: string;
+  Chipkarten_Nr?: string;
+  Chipkarten_PIN?: string;
+  PLZ_Ort?: string;
+  Raum_Cube?: string;
+  Bemerkung_FE?: string;
+  Filialschluessel?: string;
+  Kassenschluessel?: string;
+  Masterkasse?: string;
+  FE_Kennung?: string;
+  Riposte_GroupID?: string;
+  Riposte_NodeID?: string;
+  Aussenstellennummer?: string;
+  Weitere_Chipkarten?: string;
+  MGS_Paket_ZORA_R?: string;
+  FE_LoggedOn_User?: string;
+  Cryptostore_Status?: string;
+  Hardwareausstattung?: string;
+  DBEPOS_Version?: string;
 }
+
+
 
 interface Toast {
   id: number;
@@ -752,6 +781,10 @@ export default function Overview() {
                   </th>
                   <th className="px-6 py-4 text-left font-semibold text-slate-900">Bemerkung</th>
                   <th className="px-6 py-4 text-left font-semibold text-slate-900">Version</th>
+                  <th className="px-6 py-4 text-left font-semibold text-slate-900">OZ</th>
+                  <th className="px-6 py-4 text-left font-semibold text-slate-900">Raum</th>
+                  <th className="px-6 py-4 text-left font-semibold text-slate-900">PLZ/Ort</th>
+                  <th className="px-6 py-4 text-left font-semibold text-slate-900">ZORA Version</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -805,6 +838,26 @@ export default function Overview() {
                       <td className="px-6 py-4">
                         <span className="font-mono text-slate-700 bg-slate-100 px-2 py-1 rounded-md text-sm">
                           {computer.installed_version}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-slate-700 text-sm">
+                          {computer.OZ || '-'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-slate-700 text-sm">
+                          {computer.Raum_Cube || '-'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-slate-700 text-sm">
+                          {computer.PLZ_Ort || '-'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-slate-700 text-sm">
+                          {computer.ZORA_Version || '-'}
                         </span>
                       </td>
                     </tr>

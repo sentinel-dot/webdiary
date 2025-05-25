@@ -7,6 +7,7 @@ try {
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
     $stmt = $pdo->query("SELECT * FROM computers");
+    
     $computers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     echo json_encode($computers);
