@@ -576,12 +576,7 @@ export default function Overview() {
               <div className="relative">
                 <button
                   onClick={() => setShowFunctionsDropdown(!showFunctionsDropdown)}
-                  disabled={selectedComputers.length === 0}
-                  className={`px-6 py-3 rounded-xl font-semibold transition-all flex items-center gap-2 ${
-                    selectedComputers.length > 0
-                      ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg hover:shadow-xl'
-                      : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                  }`}
+                  className="px-6 py-3 rounded-xl font-semibold transition-all flex items-center gap-2 bg-blue-600 text-white hover:bg-blue-700 shadow-lg hover:shadow-xl"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
@@ -593,17 +588,21 @@ export default function Overview() {
                 </button>
                 
                 {/* Functions Dropdown Menu */}
-                {showFunctionsDropdown && selectedComputers.length > 0 && (
+                {showFunctionsDropdown && (
                   <div className="absolute top-full left-0 mt-1 w-64 bg-white rounded-xl shadow-lg border border-slate-200 z-50">
                     <div className="py-2">
                       {/* Status ändern */}
                       {hasRole('privileged-user') && (
                         <button
                           onClick={() => {
-                            setStatusModal({...statusModal, isOpen: true});
-                            setShowFunctionsDropdown(false);
-                          }}
-                          className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors flex items-center gap-3"
+                            if (selectedComputers.length > 0) {
+                              setStatusModal({...statusModal, isOpen: true});
+                              setShowFunctionsDropdown(false);
+                            } else {
+                              addToast("Bitte mindestens 1 Computer auswählen", "error");
+                            }
+                            }}
+                          className={`w-full text-left px-4 py-3 flex items-center gap-3`}
                         >
                           <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
                             <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -621,10 +620,14 @@ export default function Overview() {
                       {hasRole('admin-user') && (
                         <button
                           onClick={() => {
-                            setVersionModal({...versionModal, isOpen: true});
-                            setShowFunctionsDropdown(false);
+                            if (selectedComputers.length > 0) {
+                              setVersionModal({...versionModal, isOpen: true});
+                              setShowFunctionsDropdown(false);
+                            } else {
+                              addToast("Bitte mindestens 1 Computer auswählen", "error");
+                            }
                           }}
-                          className="w-full text-left px-4 py-3 hover:bg-emerald-50 transition-colors flex items-center gap-3"
+                          className={`w-full text-left px-4 py-3 flex items-center gap-3`}
                         >
                           <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
                             <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -643,9 +646,13 @@ export default function Overview() {
                         <button
                           onClick={() => {
                             setShowFunctionsDropdown(false);
-                            handleSystemReboot();
+                            if (selectedComputers.length > 0) {
+                              handleSystemReboot();
+                            } else {
+                              addToast("Bitte mindestens 1 Computer auswählen", "error");
+                            }
                           }}
-                          className="w-full text-left px-4 py-3 hover:bg-amber-50 transition-colors flex items-center gap-3"
+                          className={`w-full text-left px-4 py-3 flex items-center gap-3`}
                         >
                           <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center">
                             <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
